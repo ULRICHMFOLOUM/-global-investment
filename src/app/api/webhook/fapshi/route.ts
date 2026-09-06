@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = "force-dynamic";
+
 // Webhook Fapshi — confirme les paiements en succès
 export async function POST(req: NextRequest) {
   try {

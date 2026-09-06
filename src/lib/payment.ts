@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const FAPSHI_BASE_URL = "https://live.fapshi.com";
+const FAPSHI_BASE_URL = process.env.FAPSHI_BASE_URL || "https://live.fapshi.com";
 
 interface FapshiPaymentInit {
   amount: number;
