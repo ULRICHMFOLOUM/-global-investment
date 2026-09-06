@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   // En production, vérifiez un jeton secret dans les headers pour sécuriser cet endpoint
   // const authHeader = req.headers.get('authorization')
