@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  phone        String        @unique
+  password     String
+  country      String        @default("CM")
+  balance      Float         @default(0)
+  bonusBalance Float         @default(0)
+  referralCode String        @unique @default(cuid())
+  referredBy   String?
+  vipLevel     Int           @default(0)
+  role         String        @default("USER")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  gains        Gain[]
+  investments  Investment[]
+  deposits     Transaction[] @relation("deposits")
+}
+
+model Plan {
+  id          String       @id @default(cuid())
+  name        String
+  category    String       @default("NORMAL")
+  minAmount   Float
+  maxAmount   Float
+  dailyReturn Float
+  duration    Int
+  vipRequired Int          @default(0)
+  isActive    Boolean      @default(true)
+  color       String       @default("#3B82F6")
+  icon        String       @default("pickaxe")
+  investments Investment[]
+}
+
+model Investment {
+  id          String   @id @default(cuid())
+  userId      String
+  planId      String
+  amount      Float
+  dailyReturn Float
+  totalReturn Float    @default(0)
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  gains       Gain[]
+  user        User     @relation(fields: [userId], references: [id])
+  plan        Plan     @relation(fields: [planId], references: [id])
+}
+
+model Gain {
+  id           String     @id @default(cuid())
+  userId       String
+  investmentId String
+  amount       Float
+  date         DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id])
+  investment   Investment @relation(fields: [investmentId], references: [id])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  amount        Float
+  fee           Float    @default(0)
+  type          String
+  status        String   @default("PENDING")
+  operator      String
+  phone         String
+  externalId    String?
+  transactionId String?
+  country       String   @default("CM")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  depositor     User     @relation("deposits", fields: [userId], references: [id])
+}
