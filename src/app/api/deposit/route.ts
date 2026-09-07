@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Tous les champs sont requis (Montant, Téléphone, Opérateur)' }, { status: 400 })
     }
 
-    if (amount < 500) {
-      return NextResponse.json({ message: 'Montant minimum : 500 XAF' }, { status: 400 })
+    if (amount < 100) {
+      return NextResponse.json({ message: 'Montant minimum : 100 XAF' }, { status: 400 })
     }
 
     // Créer la transaction en attente

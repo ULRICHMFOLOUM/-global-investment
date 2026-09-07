@@ -11,8 +11,6 @@ import BackButton from '@/components/ui/BackButton'
 const OPERATORS = [
   { id: 'orange', name: 'Orange Money', logo: '🟠', color: 'border-orange-500/50 bg-orange-500/10', countries: ['CM','SN','CI','ML','BF','GN'] },
   { id: 'mtn', name: 'MTN Mobile Money', logo: '🟡', color: 'border-yellow-500/50 bg-yellow-500/10', countries: ['CM','GN','CD'] },
-  { id: 'wave', name: 'Wave', logo: '💙', color: 'border-blue-500/50 bg-blue-500/10', countries: ['SN','CI','ML','BF'] },
-  { id: 'moov', name: 'Moov Money', logo: '🔵', color: 'border-indigo-500/50 bg-indigo-500/10', countries: ['BJ','TG','BF'] },
 ]
 
 const BANK_ICONS: any = {
@@ -98,8 +96,8 @@ function BanqueContent() {
     }
   }, [tab])
 
-  const MIN_DEPOSIT = 10000
-  const MIN_WITHDRAW = 5000
+  const MIN_DEPOSIT = 100
+  const MIN_WITHDRAW = 100
   const WITHDRAW_FEE = 0.03 // 3%
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -345,7 +343,7 @@ function BanqueContent() {
               <input
                 type="number" required
                 min={tab === 'depot' ? MIN_DEPOSIT : MIN_WITHDRAW}
-                placeholder={`Minimum: ${tab === 'depot' ? MIN_DEPOSIT.toLocaleString() : MIN_WITHDRAW.toLocaleString()}`}
+                placeholder={`Minimum : ${tab === 'depot' ? MIN_DEPOSIT : MIN_WITHDRAW} XAF`}
                 value={form.amount} onChange={e => setForm({...form, amount: e.target.value})}
                 className="input-field bg-white/5 border-white/10 rounded-2xl py-4 text-xl font-black text-emerald-400 tracking-tighter"
               />
@@ -355,7 +353,7 @@ function BanqueContent() {
                   <div className="flex items-start gap-3">
                     <Info className="w-5 h-5 text-emerald-400 mt-0.5" />
                     <p className="text-slate-400 text-[11px] leading-relaxed font-medium">
-                      Paiement via la passerelle sécurisée <span className="text-white font-black underline decoration-emerald-500/50 underline-offset-4">Fapshi</span>. Redirection automatique et validation directe sur votre mobile (Orange / MTN / Wave).
+                      Paiement via la passerelle sécurisée <span className="text-white font-black underline decoration-emerald-500/50 underline-offset-4">Fapshi</span>. Redirection automatique et validation directe sur votre mobile (Orange / MTN).
                     </p>
                   </div>
                 ) : (

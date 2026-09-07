@@ -20,16 +20,14 @@ import BentoGrid from "@/components/landing/BentoGrid";
 const paymentPartners = [
   { text: "Orange Money Cameroun", icon: "🟠", badge: "Instantané", color: "#f97316" },
   { text: "MTN Mobile Money", icon: "🟡", badge: "24h/7j", color: "#eab308" },
-  { text: "Wave Sénégal & Côte d'Ivoire", icon: "💙", badge: "0% frais", color: "#3b82f6" },
   { text: "Passerelle Officielle Fapshi", icon: "⚡", badge: "Agréé", color: "#60a5fa" },
-  { text: "Moov Money Panafricain", icon: "🔵", badge: "Rapide", color: "#6366f1" },
   { text: "Cartes Visa & Mastercard", icon: "💳", badge: "Sécurisé", color: "#10b981" },
   { text: "Virement UBA & Ecobank", icon: "🏦", badge: "Direct", color: "#8b5cf6" },
 ];
 
 const liveActivity = [
   { text: "Paul N. (Douala) a investi 50 000 XAF", icon: "🚀", badge: "il y a 2 min", color: "#10b981" },
-  { text: "Aminata T. (Dakar) a retiré 35 000 XAF via Wave", icon: "💰", badge: "il y a 5 min", color: "#3b82f6" },
+  { text: "Aminata T. (Douala) a retiré 35 000 XAF via MTN MoMo", icon: "💰", badge: "il y a 5 min", color: "#eab308" },
   { text: "Samuel K. (Abidjan) a activé le Plan Expert", icon: "💎", badge: "il y a 8 min", color: "#f59e0b" },
   { text: "Fatou S. (Yaoundé) a reçu 12 500 XAF de bonus parrainage", icon: "🤝", badge: "il y a 11 min", color: "#a855f7" },
   { text: "Ibrahim D. (Bamako) a déposé 100 000 XAF via Orange Money", icon: "⚡", badge: "il y a 14 min", color: "#10b981" },
@@ -45,7 +43,7 @@ const stats = [
 
 const features = [
   { icon: TrendingUp, title: "Rendements garantis", desc: "Jusqu'à 15% de retour quotidien sur vos investissements avec nos plans certifiés.", color: "from-blue-500 to-cyan-500", glow: "shadow-blue-500/20" },
-  { icon: Zap, title: "Dépôt instantané via Fapshi", desc: "Déposez en quelques secondes via Orange Money, MTN MoMo, Wave ou Moov — powered by Fapshi.", color: "from-yellow-500 to-orange-500", glow: "shadow-yellow-500/20" },
+  { icon: Zap, title: "Dépôt instantané via Fapshi", desc: "Déposez en quelques secondes via Orange Money ou MTN Mobile Money — powered by Fapshi.", color: "from-yellow-500 to-orange-500", glow: "shadow-yellow-500/20" },
   { icon: Shield, title: "Sécurité maximale", desc: "Vos fonds sont protégés par un chiffrement de niveau bancaire et une surveillance 24h/7j.", color: "from-green-500 to-emerald-500", glow: "shadow-green-500/20" },
   { icon: Globe, title: "Panafricain", desc: "Disponible au Cameroun, Sénégal, Côte d'Ivoire, Mali, Burkina Faso et 10 autres pays.", color: "from-purple-500 to-pink-500", glow: "shadow-purple-500/20" },
 ];
@@ -352,7 +350,7 @@ export default function LandingPage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
               className="flex flex-wrap items-center justify-center gap-2">
               <span className="text-sm mr-1" style={{ color: "var(--text-muted)" }}>Paiements via :</span>
-              {["🟠 Orange Money", "🟡 MTN MoMo", "💙 Wave", "🔵 Moov Money"].map((op) => (
+              {["🟠 Orange Money", "🟡 MTN MoMo"].map((op) => (
                 <motion.span key={op} whileHover={{ scale: 1.05, y: -1 }}
                   className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-default"
                   style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-secondary)" }}>
@@ -746,7 +744,7 @@ export default function LandingPage() {
 
           {/* Operators */}
           <div className="flex flex-wrap justify-center gap-3 mb-8">
-            {["🟠 Orange Money", "🟡 MTN MoMo", "💙 Wave", "🔵 Moov Money", "⚡ Fapshi"].map((op) => (
+            {["🟠 Orange Money", "🟡 MTN MoMo", "⚡ Fapshi"].map((op) => (
               <span key={op} className="px-4 py-1.5 rounded-full text-xs font-semibold border"
                 style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-secondary)" }}>
                 {op}

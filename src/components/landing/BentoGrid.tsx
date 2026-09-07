@@ -27,16 +27,14 @@ export default function BentoGrid() {
               Dépôts & Retraits Instantanés Mobile Money
             </h3>
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--text-secondary)' }}>
-              Grâce à notre intégration directe avec <strong>Fapshi</strong>, rechargez votre compte en moins de 10 secondes via Orange Money, MTN MoMo, Wave ou Moov, sans intermédiaire.
+              Grâce à notre intégration directe avec <strong>Fapshi</strong>, rechargez votre compte en moins de 10 secondes via Orange Money ou MTN MoMo, sans intermédiaire.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t" style={{ borderColor: 'var(--border-color)' }}>
             {[
-              { name: 'Orange Money', flag: '🟠', sub: 'Cameroun & Ouest' },
+              { name: 'Orange Money', flag: '🟠', sub: 'Instantané 24/7' },
               { name: 'MTN MoMo', flag: '🟡', sub: 'Instantané 24/7' },
-              { name: 'Wave', flag: '💙', sub: '0% de frais' },
-              { name: 'Moov Money', flag: '🔵', sub: 'Réseau panafricain' },
             ].map((m) => (
               <div
                 key={m.name}

@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
 
     const { amount, phone, operator } = await req.json()
 
-    if (amount < 5000) {
-      return NextResponse.json({ message: 'Montant minimum de retrait : 5 000 XAF' }, { status: 400 })
+    if (amount < 100) {
+      return NextResponse.json({ message: 'Montant minimum de retrait : 100 XAF' }, { status: 400 })
     }
 
     const user = await prisma.user.findUnique({ where: { id: session.user.id } })
