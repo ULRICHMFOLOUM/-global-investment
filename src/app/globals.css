@@ -499,3 +499,29 @@ select.input-field option {
   background: white;
   color: #0f172a;
 }
+
+/* ──────────────────────────────────────────────
+   Masquer le badge / logo Netlify
+─────────────────────────────────────────────── */
+/* Badge flottant "Netlify" en bas de page */
+[data-netlify-badge],
+.netlify-badge,
+a[href*="netlify.com/"][target="_blank"]:has(img[src*="netlify"]),
+#netlify-identity-widget,
+.netlify-identity-overlay,
+.netlify-identity-container,
+.netlify-identity-widget-btn,
+/* Bouton "Powered by Netlify" généré dynamiquement */
+div[style*="netlify"],
+div[data-netlify],
+/* iframe Netlify Identity */
+iframe[src*="netlify"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  overflow: hidden !important;
+}

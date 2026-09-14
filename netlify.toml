@@ -7,3 +7,15 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Désactiver le widget Netlify Identity sur toutes les pages
+[template.environment]
+  NETLIFY_SKIP_IDENTITY = "true"
+
+# En-têtes de sécurité + suppression du badge Netlify
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
