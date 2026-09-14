@@ -77,14 +77,14 @@ async function runTests() {
     if (referral.referredBy) {
       await tx.user.update({
         where: { id: sponsor.id },
-        data: { balance: { increment: 5000 }, bonusBalance: { increment: 5000 } }
+        data: { balance: { increment: 1000 }, bonusBalance: { increment: 1000 } }
       })
 
       await tx.notification.create({
         data: {
           userId: sponsor.id,
-          title: '🎉 Bonus de Parrainage (+5 000 FCFA) !',
-          message: `Votre filleul ${referral.name} a activé son plan. Vous recevez 5 000 FCFA sur votre solde !`,
+          title: '🎉 Bonus de Parrainage (+1 000 FCFA) !',
+          message: `Votre filleul ${referral.name} a activé son plan. Vous recevez 1 000 FCFA sur votre solde !`,
           type: 'BONUS'
         }
       })
@@ -92,8 +92,8 @@ async function runTests() {
   })
 
   const updatedSponsor = await prisma.user.findUnique({ where: { id: sponsor.id } })
-  console.log(`   ✅ Solde du parrain après validation : ${updatedSponsor.balance} XAF (Incrément exact : +5 000 FCFA !)`)
-  if (updatedSponsor.balance !== 6000) throw new Error('Le bonus de 5000 FCFA n a pas été crédité correctement')
+  console.log(`   ✅ Solde du parrain après validation : ${updatedSponsor.balance} XAF (Incrément exact : +1 000 FCFA !)`)
+  if (updatedSponsor.balance !== 2000) throw new Error('Le bonus de 1000 FCFA n a pas été crédité correctement')
 
   // 3. Test de la restriction de retrait (au moins 5 filleuls avec plan)
   console.log('\n3️⃣ Test Restriction de Retrait (< 5 filleuls ayant un plan)...')

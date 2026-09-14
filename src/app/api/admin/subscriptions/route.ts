@@ -107,12 +107,12 @@ export async function POST(req: NextRequest) {
           });
 
           if (referrer) {
-            // Crédit de 5 000 FCFA sur le solde du parrain
+            // Crédit de 1 000 FCFA sur le solde du parrain
             await tx.user.update({
               where: { id: referrer.id },
               data: {
-                balance: { increment: 5000 },
-                bonusBalance: { increment: 5000 },
+                balance: { increment: 1000 },
+                bonusBalance: { increment: 1000 },
               },
             });
 
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
             await tx.transaction.create({
               data: {
                 userId: referrer.id,
-                amount: 5000,
+                amount: 1000,
                 type: "BONUS",
                 status: "SUCCESS",
                 operator: "SYSTEM",
@@ -134,8 +134,8 @@ export async function POST(req: NextRequest) {
             await tx.notification.create({
               data: {
                 userId: referrer.id,
-                title: "🎉 Bonus de Parrainage (+5 000 FCFA) !",
-                message: `Félicitations ! Votre filleul ${investment.user.name} a souscrit au plan "${investment.plan.name}". Vous avez reçu 5 000 FCFA sur votre solde disponible !`,
+                title: "🎉 Bonus de Parrainage (+1 000 FCFA) !",
+                message: `Félicitations ! Votre filleul ${investment.user.name} a souscrit au plan "${investment.plan.name}". Vous avez reçu 1 000 FCFA sur votre solde disponible !`,
                 type: "BONUS",
               },
             });
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Souscription de ${investment.user.name} (${investment.plan.name}) validée et activée ! Bonus parrainage 5000 XAF traité.`,
+        message: `Souscription de ${investment.user.name} (${investment.plan.name}) validée et activée ! Bonus parrainage 1000 XAF traité.`,
       });
     } else {
       // REJECT

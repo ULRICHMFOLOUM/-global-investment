@@ -8,18 +8,15 @@ export default function WhatsAppButton() {
   const [isHovered, setIsHovered] = useState(false);
   const [isClosed, setIsClosed] = useState(false);
 
-  // Numéro de support WhatsApp configuré (Cameroun +237 par défaut)
-  const whatsappNumber =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "237676607225";
-  const defaultMessage = encodeURIComponent(
-    "Bonjour GlobalInvest Africa, j'ai besoin d'une assistance concernant mon compte."
-  );
-  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${defaultMessage}`;
+  // Chaîne officielle WhatsApp GlobalInvest Africa
+  const whatsappChannelUrl = "https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735";
+  const supportNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "237676607225";
+  const supportUrl = `https://wa.me/${supportNumber}?text=${encodeURIComponent("Bonjour GlobalInvest Africa, j'ai besoin d'une assistance concernant mon compte.")}`;
 
   if (isClosed) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex items-end gap-3 pointer-events-auto select-none">
+    <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto select-none">
       {/* Tooltip / Message Pop-up */}
       <AnimatePresence>
         {isHovered && (
@@ -28,24 +25,44 @@ export default function WhatsAppButton() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 10, scale: 0.9 }}
             transition={{ duration: 0.2 }}
-            className="hidden sm:flex flex-col bg-slate-900/95 text-white border border-emerald-500/40 rounded-2xl p-3 shadow-2xl backdrop-blur-xl max-w-[220px]"
+            className="flex flex-col bg-slate-900/95 text-white border border-emerald-500/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl max-w-[240px]"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                Support En Ligne 24/7
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                  Chaîne Officielle
+                </span>
+              </div>
             </div>
-            <p className="text-xs font-semibold text-slate-200 leading-tight">
-              Une question ou un souci ? Discutez directement avec un conseiller sur WhatsApp.
+            <p className="text-xs font-bold text-slate-100 leading-snug mb-2.5">
+              📢 Rejoignez la communauté WhatsApp officielle de GlobalInvest Africa !
             </p>
+            <div className="flex flex-col gap-1.5">
+              <a
+                href={whatsappChannelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-1.5 px-2.5 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-black font-black text-[11px] text-center transition-all shadow-md shadow-emerald-900/40"
+              >
+                👉 Rejoindre la Chaîne
+              </a>
+              <a
+                href={supportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-[10px] text-center transition-all"
+              >
+                💬 Contacter le Support
+              </a>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Main WhatsApp Floating Button */}
       <motion.a
-        href={whatsappUrl}
+        href={whatsappChannelUrl}
         target="_blank"
         rel="noopener noreferrer"
         onMouseEnter={() => setIsHovered(true)}
@@ -53,7 +70,7 @@ export default function WhatsAppButton() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         className="relative group flex items-center justify-center w-14 h-14 rounded-full bg-[#25D366] text-white shadow-[0_8px_25px_rgba(37,211,102,0.45)] hover:shadow-[0_12px_35px_rgba(37,211,102,0.6)] transition-all duration-300"
-        aria-label="Contacter le support WhatsApp"
+        aria-label="Rejoindre la chaîne WhatsApp GlobalInvest Africa"
       >
         {/* Pulsing ring */}
         <span className="absolute inset-0 rounded-full bg-[#25D366] opacity-40 animate-ping pointer-events-none" />

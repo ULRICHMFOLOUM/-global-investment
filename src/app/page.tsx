@@ -10,7 +10,7 @@ import {
   TrendingUp, Shield, Zap, Globe, ChevronRight, Star,
   Users, DollarSign, Sun, Moon, Copy, CheckCircle,
   Award, Handshake, ArrowRight, Phone, Mail, Twitter,
-  Facebook, Instagram, Youtube, Send, Menu, X, Sparkles,
+  Facebook, Instagram, Youtube, Send, Menu, X, Sparkles, MessageCircle,
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import AnimeHeroBackground from "@/components/landing/AnimeHeroBackground";
@@ -78,6 +78,7 @@ const footerLinks = {
     { label: "Témoignages", href: "#testimonials" },
   ],
   support: [
+    { label: "Canal WhatsApp Officiel", href: "https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735" },
     { label: "Centre d'aide", href: "#" },
     { label: "Contact", href: "#contact" },
     { label: "FAQ", href: "#" },
@@ -268,6 +269,17 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* WhatsApp Channel Link */}
+            <a
+              href="https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all shadow-sm shadow-emerald-500/10"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Canal WhatsApp
+            </a>
+
             {/* PWA Install (navbar) */}
             <PWAInstallButton variant="navbar" />
 
@@ -714,17 +726,31 @@ export default function LandingPage() {
               </p>
               <div className="flex gap-3">
                 {[
-                  { icon: Facebook, color: "hover:text-blue-500", label: "Facebook" },
-                  { icon: Twitter, color: "hover:text-sky-400", label: "Twitter" },
-                  { icon: Instagram, color: "hover:text-pink-500", label: "Instagram" },
-                  { icon: Youtube, color: "hover:text-red-500", label: "YouTube" },
-                  { icon: Send, color: "hover:text-blue-400", label: "Telegram" },
-                ].map(({ icon: Icon, color, label }) => (
-                  <motion.button key={label} whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+                  { icon: Facebook, color: "hover:text-blue-500", label: "Facebook", href: "#" },
+                  { icon: Twitter, color: "hover:text-sky-400", label: "Twitter", href: "#" },
+                  { icon: Instagram, color: "hover:text-pink-500", label: "Instagram", href: "#" },
+                  { icon: Youtube, color: "hover:text-red-500", label: "YouTube", href: "#" },
+                  { icon: Send, color: "hover:text-blue-400", label: "Telegram", href: "#" },
+                  {
+                    icon: MessageCircle,
+                    color: "text-emerald-400 hover:text-emerald-300 border-emerald-500/40 bg-emerald-500/10",
+                    label: "Canal WhatsApp",
+                    href: "https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735"
+                  },
+                ].map(({ icon: Icon, color, label, href }) => (
+                  <motion.a
+                    key={label}
+                    href={href}
+                    target={href.startsWith("http") ? "_blank" : undefined}
+                    rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.9 }}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors ${color}`}
-                    style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-muted)" }}>
+                    style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", color: "var(--text-muted)" }}
+                    title={label}
+                  >
                     <Icon className="w-4 h-4" />
-                  </motion.button>
+                  </motion.a>
                 ))}
               </div>
             </div>

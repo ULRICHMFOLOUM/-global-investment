@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { TrendingUp, Wallet, Gift, BarChart3, ArrowDownCircle, ArrowUpCircle, Zap, Crown } from 'lucide-react'
+import { TrendingUp, Wallet, Gift, BarChart3, ArrowDownCircle, ArrowUpCircle, Zap, Crown, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
@@ -117,6 +117,40 @@ export default function DashboardPage() {
             </motion.div>
           ))}
         </div>
+
+        {/* Bannière Rejoindre Chaîne WhatsApp Officielle */}
+        <motion.a
+          href="https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735"
+          target="_blank"
+          rel="noopener noreferrer"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="block relative group overflow-hidden rounded-[2rem] bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-950 border border-emerald-500/30 p-5 hover:border-emerald-500/60 transition-all duration-300 shadow-xl shadow-emerald-950/20"
+        >
+          <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-500/20 transition-all" />
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#25D366] flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 group-hover:scale-105 transition-all">
+                <MessageCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-black text-base">Canal WhatsApp Officiel</p>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-black uppercase tracking-wider">
+                    En Direct
+                  </span>
+                </div>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Preuves de paiements, annonces et alertes communautaires
+                </p>
+              </div>
+            </div>
+            <span className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition-all whitespace-nowrap shadow-md">
+              Rejoindre 👉
+            </span>
+          </div>
+        </motion.a>
 
         {/* Accès rapide Investir Promo */}
         <motion.div

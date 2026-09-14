@@ -1310,7 +1310,7 @@ export default function AdminDashboardPage() {
                               </p>
                               {s.user?.referredBy && (
                                 <p className="text-[9px] text-amber-400 mt-0.5">
-                                  Parrainé par : {s.user.referredBy} (Bonus 5000 FCFA éligible)
+                                  Parrainé par : {s.user.referredBy} (Bonus 1 000 FCFA éligible)
                                 </p>
                               )}
                             </td>
@@ -1361,7 +1361,7 @@ export default function AdminDashboardPage() {
                                     onClick={() => handleSubscriptionAction(s.id, "APPROVE")}
                                     disabled={subActionLoading === s.id}
                                     className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition-all shadow-md shadow-emerald-500/20"
-                                    title="Valider le paiement, activer le plan et verser 5000 FCFA au parrain"
+                                    title="Valider le paiement, activer le plan et verser 1 000 FCFA au parrain"
                                   >
                                     {subActionLoading === s.id ? "Validation..." : "Valider Paiement"}
                                   </button>

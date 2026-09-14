@@ -462,6 +462,16 @@ export default function SubscriptionInvoiceModal({
                 Partager Telegram
               </button>
             </div>
+
+            {/* Rejoindre le canal WhatsApp officiel */}
+            <a
+              href="https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+            >
+              📢 Rejoindre la Chaîne WhatsApp Officielle
+            </a>
           </div>
         </motion.div>
       </div>

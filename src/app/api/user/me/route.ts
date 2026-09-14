@@ -42,6 +42,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ...user,
     referralCount,
-    referralEarnings: Math.floor(referralCount * 5000 * 0.05), // estimation
+    referralEarnings: referralCount * 1000,
   })
 }

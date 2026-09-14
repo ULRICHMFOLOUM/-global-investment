@@ -260,6 +260,16 @@ export default function PartenariatPage() {
             </button>
           </div>
 
+          {/* Lien Chaîne WhatsApp Officielle */}
+          <a
+            href="https://whatsapp.com/channel/0029VbCo2XpDp2Q5lisbz735"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all"
+          >
+            📢 Rejoindre la Chaîne WhatsApp Officielle
+          </a>
+
           {/* Bonus info */}
           <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
             <p className="text-xs text-emerald-400 font-semibold">💡 Comment ça marche ?</p>
