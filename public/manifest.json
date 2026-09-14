@@ -1,0 +1,58 @@
+{
+  "name": "Global Investment Africa",
+  "short_name": "GlobalInvest",
+  "description": "Plateforme d'investissement N°1 en Afrique. Investissez et gagnez des revenus quotidiens via Mobile Money.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050B15",
+  "theme_color": "#D4A217",
+  "lang": "fr",
+  "scope": "/",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Global Investment Africa"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mon Dashboard",
+      "short_name": "Dashboard",
+      "description": "Accéder à mon tableau de bord",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Investir",
+      "short_name": "Investir",
+      "description": "Souscrire à un plan d'investissement",
+      "url": "/dashboard/banque?tab=plans",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

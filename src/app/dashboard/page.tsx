@@ -7,6 +7,7 @@ import { TrendingUp, Wallet, Gift, BarChart3, ArrowDownCircle, ArrowUpCircle, Za
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import PWAInstallButton from '@/components/ui/PWAInstallButton'
 
 interface DashboardData {
   balance: number
@@ -58,8 +59,11 @@ export default function DashboardPage() {
                 <p className="text-blue-100/60 text-[10px] font-black uppercase tracking-[0.2em]">Liquidités disponibles</p>
                 <p className="text-white/40 text-[10px] font-bold">SOLDE DU COMPTE PRINCIPAL</p>
               </div>
-              <div className="bg-yellow-400/20 backdrop-blur-md border border-yellow-400/30 text-yellow-400 text-[10px] font-black px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
-                <Crown className="w-3.5 h-3.5 fill-current" /> VIP {data?.vipLevel ?? 0}
+              <div className="flex items-center gap-2">
+                <PWAInstallButton variant="dashboard" />
+                <div className="bg-yellow-400/20 backdrop-blur-md border border-yellow-400/30 text-yellow-400 text-[10px] font-black px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
+                  <Crown className="w-3.5 h-3.5 fill-current" /> VIP {data?.vipLevel ?? 0}
+                </div>
               </div>
             </div>
             

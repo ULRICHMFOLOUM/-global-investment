@@ -122,6 +122,22 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs without forcing NEXTAUTH_URL host
+      if (url.startsWith("/")) return url;
+      // Allows callback URLs on the same origin or configured domain
+      try {
+        const urlObj = new URL(url);
+        const baseUrlObj = new URL(baseUrl);
+        if (urlObj.origin === baseUrlObj.origin) return url;
+        if (process.env.NEXT_PUBLIC_APP_URL && urlObj.origin === new URL(process.env.NEXT_PUBLIC_APP_URL).origin) {
+          return url;
+        }
+      } catch {
+        // Fallback on root relative path
+      }
+      return "/";
+    },
   },
   pages: {
     signIn: "/login",

@@ -30,6 +30,9 @@ import {
   Layers,
   Settings,
   Eye,
+  FileText,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -44,7 +47,7 @@ import {
   Legend,
 } from "recharts";
 
-type TabType = "overview" | "transactions" | "users" | "plans";
+type TabType = "overview" | "transactions" | "subscriptions" | "users" | "plans";
 
 export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
@@ -62,6 +65,12 @@ export default function AdminDashboardPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [txActionLoading, setTxActionLoading] = useState<string | null>(null);
 
+  // Subscriptions state
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subFilterStatus, setSubFilterStatus] = useState("PENDING");
+  const [subLoading, setSubLoading] = useState(false);
+  const [subActionLoading, setSubActionLoading] = useState<string | null>(null);
+
   // Users state
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState("");
@@ -74,6 +83,22 @@ export default function AdminDashboardPage() {
   // Plans state
   const [plans, setPlans] = useState<any[]>([]);
   const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [planForm, setPlanForm] = useState({
+    id: "",
+    name: "",
+    category: "BANK",
+    minAmount: 10000,
+    maxAmount: 10000,
+    totalReturn: 30000,
+    duration: 30,
+    vipRequired: 0,
+    color: "#10B981",
+    icon: "wallet",
+    isActive: true,
+  });
+  const [planSaveLoading, setPlanSaveLoading] = useState(false);
 
   // Cron state
   const [cronRunning, setCronRunning] = useState(false);
@@ -126,6 +151,23 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchSubscriptions = async () => {
+    try {
+      setSubLoading(true);
+      const params = new URLSearchParams();
+      if (subFilterStatus !== "ALL") params.append("status", subFilterStatus);
+      const res = await fetch(`/api/admin/subscriptions?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptions(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
   const fetchUsers = async () => {
     try {
       const params = new URLSearchParams();
@@ -142,12 +184,119 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchStats();
+    fetchSubscriptions();
   }, []);
 
   useEffect(() => {
     if (activeTab === "transactions") fetchTransactions();
+    if (activeTab === "subscriptions") fetchSubscriptions();
     if (activeTab === "users") fetchUsers();
-  }, [activeTab, txFilterStatus, txFilterType]);
+  }, [activeTab, txFilterStatus, txFilterType, subFilterStatus]);
+
+  // Action sur souscription (APPROVE / REJECT)
+  const handleSubscriptionAction = async (investmentId: string, action: "APPROVE" | "REJECT") => {
+    setSubActionLoading(investmentId);
+    try {
+      const res = await fetch("/api/admin/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ investmentId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      toast.success(data.message, { duration: 6000 });
+      fetchSubscriptions();
+      fetchStats();
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de l'action");
+    } finally {
+      setSubActionLoading(null);
+    }
+  };
+
+  // Gestion des plans (Ouvrir création)
+  const handleOpenCreatePlan = () => {
+    setIsEditingPlan(false);
+    setPlanForm({
+      id: "",
+      name: "",
+      category: "BANK",
+      minAmount: 10000,
+      maxAmount: 10000,
+      totalReturn: 30000,
+      duration: 30,
+      vipRequired: 0,
+      color: "#10B981",
+      icon: "wallet",
+      isActive: true,
+    });
+    setPlanModalOpen(true);
+  };
+
+  // Gestion des plans (Ouvrir modification)
+  const handleOpenEditPlan = (p: any) => {
+    setIsEditingPlan(true);
+    const dur = p.duration || 30;
+    const tot = p.totalReturn && p.totalReturn > 0
+      ? p.totalReturn
+      : Math.round(p.minAmount * (1 + (p.dailyReturn * dur) / 100));
+    setPlanForm({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      minAmount: p.minAmount,
+      maxAmount: p.maxAmount || p.minAmount,
+      totalReturn: tot,
+      duration: dur,
+      vipRequired: p.vipRequired || 0,
+      color: p.color || "#3B82F6",
+      icon: p.icon || "wallet",
+      isActive: p.isActive,
+    });
+    setPlanModalOpen(true);
+  };
+
+  // Sauvegarder un plan (Création ou Mise à jour)
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPlanSaveLoading(true);
+    try {
+      const endpoint = "/api/admin/plans";
+      const method = isEditingPlan ? "PUT" : "POST";
+      const payload: any = {
+        name: planForm.name,
+        category: planForm.category,
+        minAmount: Number(planForm.minAmount),
+        maxAmount: Number(planForm.maxAmount),
+        totalReturn: Number(planForm.totalReturn),
+        duration: Number(planForm.duration),
+        vipRequired: Number(planForm.vipRequired),
+        color: planForm.color,
+        icon: planForm.icon,
+        isActive: planForm.isActive,
+      };
+      if (isEditingPlan) {
+        payload.planId = planForm.id;
+      }
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      toast.success(data.message);
+      setPlanModalOpen(false);
+      fetchStats();
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de l'enregistrement du plan");
+    } finally {
+      setPlanSaveLoading(false);
+    }
+  };
 
   // Trigger Cron Daily Yield
   const handleTriggerCron = async () => {
@@ -367,6 +516,12 @@ export default function AdminDashboardPage() {
               label: "Transactions",
               icon: CreditCard,
               count: (metrics.pendingDepositsCount || 0) + (metrics.pendingWithdrawalsCount || 0),
+            },
+            {
+              id: "subscriptions",
+              label: "Souscriptions",
+              icon: FileText,
+              count: subscriptions.filter((s) => s.status === "PENDING").length,
             },
             { id: "users", label: "Utilisateurs", icon: Users, count: metrics.totalUsers },
             { id: "plans", label: "Plans d'Actifs", icon: Layers, count: plans.length },
@@ -1066,6 +1221,175 @@ export default function AdminDashboardPage() {
           </motion.div>
         )}
 
+        {/* TAB 3: GESTION DES SOUSCRIPTIONS DE PLANS */}
+        {activeTab === "subscriptions" && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
+          >
+            {/* Header & Filtres */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-3xl border border-white/5 backdrop-blur-xl">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-cyan-400" />
+                <div>
+                  <h3 className="text-base font-black text-white">Souscriptions aux Plans d'Investissement</h3>
+                  <p className="text-xs text-slate-400">
+                    Validez le paiement des souscriptions pour activer le plan et verser les 5 000 FCFA au parrain.
+                  </p>
+                </div>
+              </div>
+
+              {/* Filtres de statut */}
+              <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/5">
+                {[
+                  { id: "PENDING", label: "En Attente" },
+                  { id: "ACTIVE", label: "Actives" },
+                  { id: "ALL", label: "Toutes" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setSubFilterStatus(f.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      subFilterStatus === f.id
+                        ? "bg-cyan-500 text-black shadow-lg shadow-cyan-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table des souscriptions */}
+            <div className="rounded-3xl bg-slate-900/70 border border-white/10 overflow-hidden shadow-2xl backdrop-blur-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-slate-400 font-bold uppercase tracking-wider bg-white/[0.02]">
+                      <th className="p-4">Investisseur</th>
+                      <th className="p-4">Plan Souscrit</th>
+                      <th className="p-4">Montant</th>
+                      <th className="p-4">Gain Total (30j)</th>
+                      <th className="p-4">Dividende / Jour</th>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Statut</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {subLoading ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                          <Clock className="w-6 h-6 animate-spin mx-auto text-cyan-400 mb-2" />
+                          Chargement des souscriptions...
+                        </td>
+                      </tr>
+                    ) : subscriptions.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-500">
+                          Aucune souscription trouvée pour ce filtre.
+                        </td>
+                      </tr>
+                    ) : (
+                      subscriptions.map((s) => {
+                        const dur = s.plan?.duration || 30;
+                        const expTotal = s.plan?.totalReturn && s.plan.totalReturn > 0
+                          ? s.plan.totalReturn
+                          : Math.round(s.amount * (1 + (s.dailyReturn * dur) / 100));
+                        const daily = Math.round(expTotal / dur);
+
+                        return (
+                          <tr key={s.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-4">
+                              <p className="font-bold text-white">{s.user?.name}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                {s.user?.phone} • {s.user?.email}
+                              </p>
+                              {s.user?.referredBy && (
+                                <p className="text-[9px] text-amber-400 mt-0.5">
+                                  Parrainé par : {s.user.referredBy} (Bonus 5000 FCFA éligible)
+                                </p>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span className="font-bold text-white">{s.plan?.name}</span>
+                              <span className="block text-[10px] text-cyan-400 uppercase font-mono">
+                                {s.plan?.category}
+                              </span>
+                            </td>
+                            <td className="p-4 font-black text-white text-sm">
+                              {s.amount.toLocaleString()} XAF
+                            </td>
+                            <td className="p-4 font-black text-yellow-400">
+                              {expTotal.toLocaleString()} XAF
+                            </td>
+                            <td className="p-4 font-black text-emerald-400">
+                              +{daily.toLocaleString()} XAF/j
+                            </td>
+                            <td className="p-4 text-slate-400 text-[11px]">
+                              {new Date(s.createdAt).toLocaleDateString("fr-FR", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+                            <td className="p-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                  s.status === "ACTIVE"
+                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                    : s.status === "PENDING"
+                                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse"
+                                    : "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                                }`}
+                              >
+                                {s.status === "PENDING"
+                                  ? "EN ATTENTE"
+                                  : s.status === "ACTIVE"
+                                  ? "ACTIF"
+                                  : s.status}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              {s.status === "PENDING" ? (
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => handleSubscriptionAction(s.id, "APPROVE")}
+                                    disabled={subActionLoading === s.id}
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs transition-all shadow-md shadow-emerald-500/20"
+                                    title="Valider le paiement, activer le plan et verser 5000 FCFA au parrain"
+                                  >
+                                    {subActionLoading === s.id ? "Validation..." : "Valider Paiement"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleSubscriptionAction(s.id, "REJECT")}
+                                    disabled={subActionLoading === s.id}
+                                    className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white text-xs font-bold transition-all"
+                                  >
+                                    Rejeter
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 font-mono">
+                                  {s.status === "ACTIVE" ? "Plan en cours" : "Traité"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* TAB 4: GESTION DES PLANS */}
         {activeTab === "plans" && (
           <motion.div
@@ -1074,85 +1398,132 @@ export default function AdminDashboardPage() {
             exit={{ opacity: 0, y: -15 }}
             className="space-y-6"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {plans.map((p) => (
-                <div
-                  key={p.id}
-                  className={`rounded-3xl p-6 border transition-all relative overflow-hidden backdrop-blur-xl ${
-                    p.isActive
-                      ? "bg-slate-900/70 border-white/10 shadow-xl"
-                      : "bg-slate-900/30 border-dashed border-white/10 opacity-60"
-                  }`}
-                >
-                  <div
-                    className="absolute top-0 right-0 w-28 h-28 rounded-full blur-2xl opacity-20 pointer-events-none"
-                    style={{ backgroundColor: p.color || "#3b82f6" }}
-                  />
-
-                  <div className="flex items-center justify-between mb-4">
-                    <span
-                      className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-black font-mono"
-                      style={{ backgroundColor: p.color || "#3b82f6" }}
-                    >
-                      {p.category}
-                    </span>
-                    <span
-                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                        p.isActive
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-rose-500/20 text-rose-400"
-                      }`}
-                    >
-                      {p.isActive ? "ACTIF" : "DÉSACTIVÉ"}
-                    </span>
-                  </div>
-
-                  <h4 className="text-lg font-black text-white mb-1">{p.name}</h4>
-                  <p className="text-2xl font-black text-cyan-400 tracking-tight mb-4">
-                    +{p.dailyReturn}%{" "}
-                    <span className="text-xs text-slate-400 font-normal">/ jour</span>
+            {/* Header de la gestion des plans */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-3xl border border-white/5 backdrop-blur-xl">
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-cyan-400" />
+                <div>
+                  <h3 className="text-base font-black text-white">Gestion des Plans d'Investissement</h3>
+                  <p className="text-xs text-slate-400">
+                    Créez et modifiez les montants, le gain total garanti et les versements quotidiens sur 30 jours.
                   </p>
+                </div>
+              </div>
 
-                  <div className="space-y-2 text-xs text-slate-300 font-mono mb-6 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
-                    <p className="flex justify-between">
-                      <span className="text-slate-500">Min :</span>
-                      <span>{p.minAmount.toLocaleString()} XAF</span>
-                    </p>
-                    <p className="flex justify-between">
-                      <span className="text-slate-500">Max :</span>
-                      <span>{p.maxAmount.toLocaleString()} XAF</span>
-                    </p>
-                    <p className="flex justify-between">
-                      <span className="text-slate-500">Durée :</span>
-                      <span>{p.duration} jours</span>
-                    </p>
-                    <p className="flex justify-between">
-                      <span className="text-slate-500">VIP requis :</span>
-                      <span>Niveau {p.vipRequired}</span>
-                    </p>
-                    <p className="flex justify-between font-bold text-white pt-1 border-t border-white/5">
-                      <span className="text-slate-400">Contrats actifs :</span>
-                      <span>{p._count?.investments || 0}</span>
-                    </p>
-                  </div>
+              {/* Bouton Créer un Plan */}
+              <button
+                onClick={handleOpenCreatePlan}
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 text-black font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                + Nouveau Plan
+              </button>
+            </div>
 
-                  <button
-                    onClick={() => handleTogglePlan(p)}
-                    disabled={planActionLoading === p.id}
-                    className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+            {/* Grille des Plans */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {plans.map((p) => {
+                const dur = p.duration || 30;
+                const total = p.totalReturn && p.totalReturn > 0
+                  ? p.totalReturn
+                  : Math.round(p.minAmount * (1 + (p.dailyReturn * dur) / 100));
+                const daily = Math.round(total / dur);
+
+                return (
+                  <div
+                    key={p.id}
+                    className={`rounded-3xl p-6 border transition-all relative overflow-hidden backdrop-blur-xl flex flex-col justify-between ${
                       p.isActive
-                        ? "bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white"
-                        : "bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-black"
+                        ? "bg-slate-900/70 border-white/10 shadow-xl"
+                        : "bg-slate-900/30 border-dashed border-white/10 opacity-60"
                     }`}
                   >
-                    {planActionLoading === p.id
-                      ? "Traitement..."
-                      : p.isActive
-                      ? "Désactiver ce plan"
-                      : "Activer ce plan"}
-                  </button>
-                </div>
-              ))}
+                    <div
+                      className="absolute top-0 right-0 w-28 h-28 rounded-full blur-2xl opacity-20 pointer-events-none"
+                      style={{ backgroundColor: p.color || "#3b82f6" }}
+                    />
+
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <span
+                          className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-black font-mono"
+                          style={{ backgroundColor: p.color || "#3b82f6" }}
+                        >
+                          {p.category}
+                        </span>
+                        <span
+                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            p.isActive
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-rose-500/20 text-rose-400"
+                          }`}
+                        >
+                          {p.isActive ? "ACTIF" : "DÉSACTIVÉ"}
+                        </span>
+                      </div>
+
+                      <h4 className="text-lg font-black text-white mb-1">{p.name}</h4>
+                      
+                      {/* Gains journaliers */}
+                      <p className="text-2xl font-black text-emerald-400 tracking-tight mb-4">
+                        +{daily.toLocaleString()} XAF{" "}
+                        <span className="text-xs text-slate-400 font-normal">/ jour</span>
+                      </p>
+
+                      <div className="space-y-2 text-xs text-slate-300 font-mono mb-6 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5">
+                        <p className="flex justify-between">
+                          <span className="text-slate-500">Investissement :</span>
+                          <span className="font-bold text-white">{p.minAmount.toLocaleString()} XAF</span>
+                        </p>
+                        <p className="flex justify-between">
+                          <span className="text-slate-500">Total à Gagner :</span>
+                          <span className="font-bold text-yellow-400">{total.toLocaleString()} XAF</span>
+                        </p>
+                        <p className="flex justify-between">
+                          <span className="text-slate-500">Durée :</span>
+                          <span>{dur} jours</span>
+                        </p>
+                        <p className="flex justify-between">
+                          <span className="text-slate-500">VIP requis :</span>
+                          <span>Niveau {p.vipRequired}</span>
+                        </p>
+                        <p className="flex justify-between font-bold text-white pt-1 border-t border-white/5">
+                          <span className="text-slate-400">Contrats actifs :</span>
+                          <span>{p._count?.investments || 0}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {/* Bouton Modifier les montants */}
+                      <button
+                        onClick={() => handleOpenEditPlan(p)}
+                        className="w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all bg-white/10 hover:bg-white/20 text-white flex items-center justify-center gap-1.5"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                        Modifier les montants
+                      </button>
+
+                      {/* Bouton Activer / Désactiver */}
+                      <button
+                        onClick={() => handleTogglePlan(p)}
+                        disabled={planActionLoading === p.id}
+                        className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
+                          p.isActive
+                            ? "bg-rose-500/20 hover:bg-rose-500 text-rose-400 hover:text-white"
+                            : "bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-black"
+                        }`}
+                      >
+                        {planActionLoading === p.id
+                          ? "Traitement..."
+                          : p.isActive
+                          ? "Désactiver ce plan"
+                          : "Activer ce plan"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
         )}
@@ -1245,6 +1616,221 @@ export default function AdminDashboardPage() {
                   {userActionLoading ? "Enregistrement..." : "Appliquer"}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* MODAL: CRÉER / MODIFIER UN PLAN D'INVESTISSEMENT */}
+        {planModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#0e1628] border border-cyan-500/40 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl space-y-5 my-auto"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div>
+                  <h3 className="text-lg font-black text-white">
+                    {isEditingPlan ? "Modifier le Plan d'Investissement" : "Nouveau Plan d'Investissement"}
+                  </h3>
+                  <p className="text-xs text-cyan-400 font-mono">
+                    {isEditingPlan ? `ID : ${planForm.id}` : "Configuration du contrat & dividendes"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPlanModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePlan} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Nom du plan */}
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                      Nom du Plan
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={planForm.name}
+                      onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                      placeholder="Ex: Plan Bronze Épargne"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-500 font-bold"
+                    />
+                  </div>
+
+                  {/* Catégorie */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                      Catégorie
+                    </label>
+                    <select
+                      value={planForm.category}
+                      onChange={(e) => setPlanForm({ ...planForm, category: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-500 font-bold"
+                    >
+                      <option value="BANK">Bancaire (BANK)</option>
+                      <option value="NORMAL">Standard (NORMAL)</option>
+                    </select>
+                  </div>
+
+                  {/* VIP Requis */}
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                      VIP Requis (0 à 5)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      value={planForm.vipRequired}
+                      onChange={(e) => setPlanForm({ ...planForm, vipRequired: parseInt(e.target.value) || 0 })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-500 font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Montants : Investissement, Total à Gagner, Durée */}
+                <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Montant d'investissement */}
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-cyan-400 mb-1 tracking-wider">
+                        Montant Investi (XAF)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="100"
+                        value={planForm.minAmount}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setPlanForm({ ...planForm, minAmount: val, maxAmount: val });
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-cyan-500/30 text-white text-sm font-black focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    {/* Montant Total à Gagner */}
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-yellow-400 mb-1 tracking-wider">
+                        Total à Gagner (XAF)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="100"
+                        value={planForm.totalReturn}
+                        onChange={(e) => setPlanForm({ ...planForm, totalReturn: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-yellow-500/30 text-yellow-400 text-sm font-black focus:outline-none focus:border-yellow-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Durée en jours */}
+                  <div className="grid grid-cols-2 gap-3 items-center">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                        Durée du Contrat (Jours)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={planForm.duration}
+                        onChange={(e) => setPlanForm({ ...planForm, duration: parseInt(e.target.value) || 30 })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    {/* Aperçu en direct du dividende quotidien */}
+                    <div className="bg-black/30 p-2.5 rounded-xl border border-white/5 text-right">
+                      <span className="text-[9px] text-slate-400 uppercase font-bold block">Gain Journalier</span>
+                      <span className="text-emerald-400 font-black text-sm">
+                        +{planForm.duration > 0 ? Math.round(planForm.totalReturn / planForm.duration).toLocaleString() : 0} XAF/j
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Couleur et Icône */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                      Couleur Thème
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={planForm.color}
+                        onChange={(e) => setPlanForm({ ...planForm, color: e.target.value })}
+                        className="w-10 h-10 rounded-xl bg-transparent border-0 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={planForm.color}
+                        onChange={(e) => setPlanForm({ ...planForm, color: e.target.value })}
+                        className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 tracking-wider">
+                      Icône
+                    </label>
+                    <select
+                      value={planForm.icon}
+                      onChange={(e) => setPlanForm({ ...planForm, icon: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-500 font-bold"
+                    >
+                      <option value="wallet">Portefeuille (wallet)</option>
+                      <option value="credit-card">Carte (credit-card)</option>
+                      <option value="landmark">Banque (landmark)</option>
+                      <option value="shield-check">Bouclier (shield-check)</option>
+                      <option value="gem">Diamant (gem)</option>
+                      <option value="crown">Couronne (crown)</option>
+                      <option value="pickaxe">Mine (pickaxe)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Statut actif */}
+                <div className="flex items-center gap-2.5 pt-1">
+                  <input
+                    type="checkbox"
+                    id="planActiveCheck"
+                    checked={planForm.isActive}
+                    onChange={(e) => setPlanForm({ ...planForm, isActive: e.target.checked })}
+                    className="w-4 h-4 rounded text-cyan-500 bg-slate-900 border-white/10"
+                  />
+                  <label htmlFor="planActiveCheck" className="text-xs font-bold text-slate-300 cursor-pointer">
+                    Plan actif et visible pour les investisseurs
+                  </label>
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlanModalOpen(false)}
+                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={planSaveLoading}
+                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:opacity-95 text-black font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-cyan-500/20"
+                  >
+                    {planSaveLoading ? "Enregistrement..." : isEditingPlan ? "Mettre à jour" : "Créer le Plan"}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

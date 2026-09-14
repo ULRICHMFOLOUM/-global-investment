@@ -134,7 +134,10 @@ export default function InvestPage() {
                 Réessayer
               </button>
               <button 
-                onClick={() => signOut({ callbackUrl: '/register' })}
+                onClick={async () => {
+                  await signOut({ redirect: false });
+                  window.location.href = '/register';
+                }}
                 className="px-6 py-2 bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl font-bold hover:bg-red-500/30 transition-colors"
               >
                 Déconnexion & Créer un compte

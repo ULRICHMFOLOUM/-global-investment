@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import NotificationBell from "@/components/dashboard/NotificationBell";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Accueil", icon: Home },
@@ -56,7 +57,7 @@ export default function DashboardLayout({
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {isAdmin && (
             <Link
               href="/admin"
@@ -66,6 +67,10 @@ export default function DashboardLayout({
               <span>Admin</span>
             </Link>
           )}
+
+          {/* Cloche de Notifications */}
+          <NotificationBell />
+
           {/* Theme toggle */}
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -85,8 +90,12 @@ export default function DashboardLayout({
           </span>
 
           <button
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={async () => {
+              await signOut({ redirect: false });
+              window.location.href = "/";
+            }}
             className="text-slate-400 hover:text-red-400 transition-colors p-1"
+            title="Se déconnecter"
           >
             <LogOut className="w-4 h-4" />
           </button>

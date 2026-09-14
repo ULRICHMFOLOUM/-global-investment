@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import CountUp from "react-countup";
 import { useInView } from "react-intersection-observer";
 import {
@@ -16,6 +17,8 @@ import AnimeHeroBackground from "@/components/landing/AnimeHeroBackground";
 import Marquee from "@/components/landing/Marquee";
 import RoiCalculator from "@/components/landing/RoiCalculator";
 import BentoGrid from "@/components/landing/BentoGrid";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import PWAInstallButton from "@/components/ui/PWAInstallButton";
 
 const paymentPartners = [
   { text: "Orange Money Cameroun", icon: "🟠", badge: "Instantané", color: "#f97316" },
@@ -209,8 +212,15 @@ export default function LandingPage() {
   const [copied, setCopied] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [email, setEmail] = useState("");
+  const [showLoading, setShowLoading] = useState(true);
   const { scrollY } = useScroll();
   const navOpacity = useTransform(scrollY, [0, 100], [0, 1]);
+
+  // Show loading screen for 2.5s on first visit
+  useEffect(() => {
+    const timer = setTimeout(() => setShowLoading(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -229,6 +239,8 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      {/* ── LOADING SCREEN ── */}
+      <LoadingScreen show={showLoading} />
 
       {/* ── NAVBAR ── */}
       <motion.nav
@@ -238,11 +250,11 @@ export default function LandingPage() {
       >
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <TrendingUp className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-xl overflow-hidden border border-yellow-500/30 shadow-lg shadow-yellow-500/20">
+              <Image src="/icon-globalinvest.png" alt="GlobalInvest" width={36} height={36} className="w-full h-full object-cover" />
             </div>
             <span className="font-black text-xl" style={{ color: "var(--text-primary)" }}>
-              Global<span className="text-blue-400">Invest</span>
+              Global<span style={{ color: '#D4A217' }}>Invest</span>
             </span>
           </motion.div>
 
@@ -256,6 +268,9 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* PWA Install (navbar) */}
+            <PWAInstallButton variant="navbar" />
+
             {/* Theme Toggle */}
             <button onClick={toggleTheme} className="w-9 h-9 rounded-xl flex items-center justify-center border transition-all hover:scale-110" style={{ background: "var(--bg-card)", borderColor: "var(--border-color)" }}>
               <AnimatePresence mode="wait">
@@ -344,6 +359,8 @@ export default function LandingPage() {
                 Voir les plans
                 <ArrowRight className="w-4 h-4" />
               </a>
+              {/* PWA Install hero button */}
+              <PWAInstallButton variant="hero" className="w-full sm:w-auto" />
             </div>
 
             {/* Operators */}

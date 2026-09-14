@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions)
     if (!session?.user) return NextResponse.json({ message: 'Non autorisé' }, { status: 401 })
 
-    const { planId, amount } = await req.json()
+    const userId = (session.user as any).id
+    const { planId, amount, phone, operator } = await req.json()
 
     if (!planId || !amount) {
       return NextResponse.json({ message: 'Plan et montant requis' }, { status: 400 })
@@ -23,42 +24,89 @@ export async function POST(req: NextRequest) {
 
     if (amount < plan.minAmount || amount > plan.maxAmount) {
       return NextResponse.json({ 
-        message: `Montant doit être entre ${plan.minAmount} et ${plan.maxAmount} XAF` 
+        message: `Montant invalide pour ce plan (${plan.minAmount.toLocaleString()} XAF requis)` 
       }, { status: 400 })
     }
 
-    const user = await prisma.user.findUnique({ where: { id: session.user.id } })
-    if (!user || user.balance < amount) {
-      return NextResponse.json({ message: 'Solde insuffisant' }, { status: 400 })
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return NextResponse.json({ message: 'Utilisateur introuvable' }, { status: 404 })
     }
 
-    const endDate = new Date()
-    endDate.setDate(endDate.getDate() + plan.duration)
+    const duration = plan.duration || 30
+    const expectedTotalReturn = plan.totalReturn && plan.totalReturn > 0
+      ? plan.totalReturn
+      : Math.round(amount * (1 + (plan.dailyReturn * duration) / 100))
+    const dailyGain = Math.round(expectedTotalReturn / duration)
 
-    // Créer l'investissement et débiter le solde
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: session.user.id },
-        data: { balance: { decrement: amount } }
-      }),
+    const now = new Date()
+    const endDate = new Date(now)
+    endDate.setDate(endDate.getDate() + duration)
+
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`
+
+    // Créer la souscription en statut PENDING (En attente de validation par l'admin)
+    const [investment, transaction] = await prisma.$transaction([
       prisma.investment.create({
         data: {
-          userId: session.user.id,
+          userId,
           planId,
           amount,
           dailyReturn: plan.dailyReturn,
+          totalReturn: 0,
+          startDate: now,
           endDate,
-          status: 'ACTIVE',
+          status: 'PENDING',
+        }
+      }),
+      prisma.transaction.create({
+        data: {
+          userId,
+          amount,
+          fee: 0,
+          type: 'PLAN_SUBSCRIPTION',
+          status: 'PENDING',
+          operator: operator || 'ORANGE/MTN',
+          phone: phone || user.phone,
+          transactionId: invoiceNumber,
+          country: user.country || 'CM',
+        }
+      }),
+      prisma.notification.create({
+        data: {
+          userId,
+          title: '📋 Facture de Souscription Émise',
+          message: `Votre souscription au plan "${plan.name}" (${amount.toLocaleString()} XAF) a été enregistrée avec la facture ${invoiceNumber}. Veuillez la transmettre dans le groupe officiel pour validation.`,
+          type: 'PLAN',
         }
       })
     ])
 
     return NextResponse.json({ 
       success: true, 
-      message: `Investissement de ${amount.toLocaleString()} XAF créé avec succès!`
+      status: 'PENDING',
+      message: `Souscription initiée avec succès ! Votre facture est disponible pour validation.`,
+      invoice: {
+        invoiceNumber,
+        investmentId: investment.id,
+        createdAt: now.toISOString(),
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: phone || user.phone,
+        userCountry: user.country || 'CM',
+        planId: plan.id,
+        planName: plan.name,
+        planCategory: plan.category,
+        amount,
+        duration,
+        totalReturn: expectedTotalReturn,
+        dailyGain,
+        dailyReturnRate: plan.dailyReturn,
+        status: 'PENDING',
+      }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Invest error:', error)
-    return NextResponse.json({ message: 'Erreur serveur' }, { status: 500 })
+    return NextResponse.json({ message: 'Erreur serveur', error: error.message }, { status: 500 })
   }
 }

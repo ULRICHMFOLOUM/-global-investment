@@ -78,6 +78,16 @@ export async function POST(req: NextRequest) {
             data: { balance: { increment: transaction.amount } },
           });
 
+          // Notification pour le client
+          await tx.notification.create({
+            data: {
+              userId: transaction.userId,
+              title: "💰 Dépôt Validé !",
+              message: `Votre dépôt de ${transaction.amount.toLocaleString()} XAF a été validé avec succès par l'administrateur. Votre solde a été crédité.`,
+              type: "DEPOSIT",
+            },
+          });
+
           // Parrainage bonus 5%
           const user = await tx.user.findUnique({
             where: { id: transaction.userId },
@@ -108,10 +118,20 @@ export async function POST(req: NextRequest) {
       }
     } else if (transaction.type === "WITHDRAWAL") {
       if (action === "APPROVE") {
-        await prisma.transaction.update({
-          where: { id: transaction.id },
-          data: { status: "SUCCESS" },
-        });
+        await prisma.$transaction([
+          prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: "SUCCESS" },
+          }),
+          prisma.notification.create({
+            data: {
+              userId: transaction.userId,
+              title: "✅ Retrait Validé & Transféré !",
+              message: `Votre demande de retrait de ${transaction.amount.toLocaleString()} XAF a été validée et envoyée vers votre numéro ${transaction.phone}.`,
+              type: "WITHDRAW",
+            },
+          }),
+        ]);
 
         return NextResponse.json({
           success: true,
@@ -128,6 +148,14 @@ export async function POST(req: NextRequest) {
           prisma.user.update({
             where: { id: transaction.userId },
             data: { balance: { increment: totalRefund } },
+          }),
+          prisma.notification.create({
+            data: {
+              userId: transaction.userId,
+              title: "❌ Retrait Rejeté",
+              message: `Votre retrait a été rejeté. Le montant de ${totalRefund.toLocaleString()} XAF a été reversé sur votre solde.`,
+              type: "WITHDRAW",
+            },
           }),
         ]);
 
