@@ -22,9 +22,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Plan invalide ou inactif' }, { status: 400 })
     }
 
-    if (amount < plan.minAmount || amount > plan.maxAmount) {
+    // Pour les plans bancaires, minimum absolu de 2500 XAF (montant libre)
+    const BANK_MIN = 2500
+    const effectiveMin = plan.category === 'BANK' ? BANK_MIN : plan.minAmount
+    if (amount < effectiveMin || amount > plan.maxAmount) {
       return NextResponse.json({ 
-        message: `Montant invalide pour ce plan (${plan.minAmount.toLocaleString()} XAF requis)` 
+        message: plan.category === 'BANK'
+          ? `Montant invalide. Minimum ${BANK_MIN.toLocaleString()} XAF, maximum ${plan.maxAmount.toLocaleString()} XAF.`
+          : `Montant invalide pour ce plan (${plan.minAmount.toLocaleString()} – ${plan.maxAmount.toLocaleString()} XAF)`
       }, { status: 400 })
     }
 

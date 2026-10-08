@@ -61,6 +61,9 @@ function BanqueContent() {
   const [balance, setBalance] = useState(0)
   const [userVip, setUserVip] = useState(0)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  // Montants personnalisés par plan bancaire
+  const [bankAmounts, setBankAmounts] = useState<Record<string, string>>({})
+  const [bankAmountErrors, setBankAmountErrors] = useState<Record<string, string>>({})
 
   // Referral withdrawal condition state
   const [withdrawEligibility, setWithdrawEligibility] = useState<{
@@ -208,7 +211,25 @@ function BanqueContent() {
   }
 
   // Souscription au plan bancaire avec Facture et Modal Vert Animé
+  const MIN_BANK_INVEST = 2500
   const handleInvestBank = async (plan: any) => {
+    // Validation du montant personnalisé
+    const rawAmount = bankAmounts[plan.id] || ''
+    const userAmount = parseFloat(rawAmount)
+    if (!rawAmount || isNaN(userAmount)) {
+      setBankAmountErrors(prev => ({ ...prev, [plan.id]: 'Veuillez saisir un montant.' }))
+      return
+    }
+    if (userAmount < MIN_BANK_INVEST) {
+      setBankAmountErrors(prev => ({ ...prev, [plan.id]: `Minimum ${MIN_BANK_INVEST.toLocaleString()} XAF requis.` }))
+      return
+    }
+    if (plan.maxAmount && userAmount > plan.maxAmount) {
+      setBankAmountErrors(prev => ({ ...prev, [plan.id]: `Maximum ${plan.maxAmount.toLocaleString()} XAF autorisé.` }))
+      return
+    }
+    setBankAmountErrors(prev => ({ ...prev, [plan.id]: '' }))
+
     setInvesting(plan.id)
     try {
       const res = await fetch('/api/invest', {
@@ -216,7 +237,7 @@ function BanqueContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: plan.id,
-          amount: plan.minAmount,
+          amount: userAmount,
           phone: form.phone,
           operator: form.operator,
         })
@@ -225,15 +246,14 @@ function BanqueContent() {
       if (!res.ok) throw new Error(data.message)
 
       const duration = plan.duration || 30
-      const expectedTotal = plan.totalReturn && plan.totalReturn > 0
-        ? plan.totalReturn
-        : Math.round(plan.minAmount * (1 + (plan.dailyReturn * duration) / 100))
-      const dailyGain = Math.round(expectedTotal / duration)
+      const dailyReturnPct = plan.dailyReturn || 0
+      const expectedTotal = Math.round(userAmount * (1 + (dailyReturnPct * duration) / 100))
+      const dailyGain = Math.round(userAmount * dailyReturnPct / 100)
 
       // Déclencher le modal vert avec animation
       setSuccessPlanData({
         planName: plan.name,
-        amount: plan.minAmount,
+        amount: userAmount,
         dailyGain,
         totalReturn: expectedTotal,
         duration,
@@ -342,11 +362,15 @@ function BanqueContent() {
                   const Icon = BANK_ICONS[plan.icon] || Landmark
                   const isLocked = plan.vipRequired > userVip
                   const duration = plan.duration || 30
-                  const expectedTotal = plan.totalReturn && plan.totalReturn > 0
-                    ? plan.totalReturn
-                    : Math.round(plan.minAmount * (1 + (plan.dailyReturn * duration) / 100))
-                  const dailyGain = Math.round(expectedTotal / duration)
-                  
+                  const dailyReturnPct = plan.dailyReturn || 0
+
+                  // Montant saisi par l'utilisateur (ou minAmount par défaut)
+                  const rawInput = bankAmounts[plan.id] ?? ''
+                  const userAmount = parseFloat(rawInput) || 0
+                  const displayAmount = userAmount > 0 ? userAmount : plan.minAmount
+                  const computedDailyGain = Math.round(displayAmount * dailyReturnPct / 100)
+                  const computedTotal = Math.round(displayAmount * (1 + (dailyReturnPct * duration) / 100))
+
                   return (
                     <motion.div
                       key={plan.id}
@@ -368,7 +392,7 @@ function BanqueContent() {
                           <h3 className="text-white font-black text-xl tracking-tight uppercase mt-0.5">{plan.name}</h3>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                              +{dailyGain.toLocaleString()} XAF / jour
+                              +{computedDailyGain.toLocaleString()} XAF / jour
                             </span>
                             {isLocked && (
                               <span className="bg-rose-500/20 text-rose-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-rose-500/20">
@@ -379,18 +403,50 @@ function BanqueContent() {
                         </div>
                       </div>
 
-                      {/* Grille des montants : Montant, Montant Total, Durée */}
+                      {/* Champ montant personnalisable */}
+                      <div className="mb-4">
+                        <label className="block text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-2 ml-1">
+                          Montant à investir <span className="text-cyan-400">(min. 2 500 XAF)</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={2500}
+                            max={plan.maxAmount || undefined}
+                            step={100}
+                            value={rawInput}
+                            onChange={e => {
+                              const val = e.target.value
+                              setBankAmounts(prev => ({ ...prev, [plan.id]: val }))
+                              if (parseFloat(val) >= 2500) {
+                                setBankAmountErrors(prev => ({ ...prev, [plan.id]: '' }))
+                              }
+                            }}
+                            placeholder={plan.minAmount.toLocaleString()}
+                            disabled={isLocked}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all pr-14"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-black">XAF</span>
+                        </div>
+                        {bankAmountErrors[plan.id] && (
+                          <p className="text-rose-400 text-[11px] font-bold mt-1.5 ml-1 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />{bankAmountErrors[plan.id]}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Grille dynamique: Montant, Gain/jour, Montant Total, Durée */}
                       <div className="grid grid-cols-3 gap-2 mb-4 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5 text-center">
                         <div>
                           <p className="text-slate-500 text-[8px] font-black uppercase tracking-wider">Investissement</p>
                           <p className="text-white font-bold text-xs sm:text-sm mt-0.5">
-                            {plan.minAmount.toLocaleString()} <span className="text-[10px] text-slate-400">XAF</span>
+                            {displayAmount.toLocaleString()} <span className="text-[10px] text-slate-400">XAF</span>
                           </p>
                         </div>
                         <div className="border-x border-white/5 bg-amber-500/10 rounded-xl px-1 py-0.5 border border-amber-500/20">
-                          <p className="text-amber-400 text-[8px] font-black uppercase tracking-wider">Montant Total</p>
+                          <p className="text-amber-400 text-[8px] font-black uppercase tracking-wider">Total Retour</p>
                           <p className="text-amber-300 font-black text-xs sm:text-sm mt-0.5">
-                            {expectedTotal.toLocaleString()} <span className="text-[10px] text-amber-400">XAF</span>
+                            {computedTotal.toLocaleString()} <span className="text-[10px] text-amber-400">XAF</span>
                           </p>
                         </div>
                         <div>
