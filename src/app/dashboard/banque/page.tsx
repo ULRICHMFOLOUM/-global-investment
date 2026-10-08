@@ -19,6 +19,9 @@ import {
   FileText,
   Share2,
   ExternalLink,
+  Calculator,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -46,7 +49,7 @@ function BanqueContent() {
     (searchParams.get('tab') as any) || 'depot'
   )
   const [form, setForm] = useState({
-    amount: '',
+    amount: searchParams.get('amount') || '',
     phone: '',
     operator: 'orange',
     transactionId: '',
@@ -61,9 +64,17 @@ function BanqueContent() {
   const [balance, setBalance] = useState(0)
   const [userVip, setUserVip] = useState(0)
   const [globalError, setGlobalError] = useState<string | null>(null)
-  // Montants personnalisés par plan bancaire
-  const [bankAmounts, setBankAmounts] = useState<Record<string, string>>({})
-  const [bankAmountErrors, setBankAmountErrors] = useState<Record<string, string>>({})
+  // Saisie unique et personnalisée du montant d'investissement bancaire
+  const [investAmount, setInvestAmount] = useState<string>('')
+  const [investAmountError, setInvestAmountError] = useState<string>('')
+  const [validatedPlan, setValidatedPlan] = useState<{
+    plan: any;
+    amount: number;
+    dailyGain: number;
+    totalReturn: number;
+    duration: number;
+    dailyReturnPct: number;
+  } | null>(null)
 
   // Referral withdrawal condition state
   const [withdrawEligibility, setWithdrawEligibility] = useState<{
@@ -210,53 +221,125 @@ function BanqueContent() {
     }
   }
 
-  // Souscription au plan bancaire avec Facture et Modal Vert Animé
+  // Logique d'Investissement Bancaire Personnalisé (Min 2 500 XAF)
   const MIN_BANK_INVEST = 2500
-  const handleInvestBank = async (plan: any) => {
-    // Validation du montant personnalisé
-    const rawAmount = bankAmounts[plan.id] || ''
-    const userAmount = parseFloat(rawAmount)
-    if (!rawAmount || isNaN(userAmount)) {
-      setBankAmountErrors(prev => ({ ...prev, [plan.id]: 'Veuillez saisir un montant.' }))
-      return
-    }
-    if (userAmount < MIN_BANK_INVEST) {
-      setBankAmountErrors(prev => ({ ...prev, [plan.id]: `Minimum ${MIN_BANK_INVEST.toLocaleString()} XAF requis.` }))
-      return
-    }
-    if (plan.maxAmount && userAmount > plan.maxAmount) {
-      setBankAmountErrors(prev => ({ ...prev, [plan.id]: `Maximum ${plan.maxAmount.toLocaleString()} XAF autorisé.` }))
-      return
-    }
-    setBankAmountErrors(prev => ({ ...prev, [plan.id]: '' }))
 
-    setInvesting(plan.id)
+  // Trouver le plan bancaire adapté au montant saisi
+  const getMatchedBankPlan = (amt: number) => {
+    if (!bankPlans || bankPlans.length === 0) {
+      return {
+        id: 'bank-standard',
+        name: 'Épargne Standard Garanti',
+        dailyReturn: 6.83,
+        duration: 30,
+        icon: 'shield-check',
+        color: '#06b6d4',
+      }
+    }
+    // Trouver le palier correspondant au montant saisi
+    const match = bankPlans.find(p => amt >= p.minAmount && (!p.maxAmount || amt <= p.maxAmount))
+      || bankPlans.find(p => !p.maxAmount || amt <= p.maxAmount)
+      || bankPlans[0]
+    return match
+  }
+
+  // Valider le montant saisi et générer le plan personnalisé
+  const handleValidateAmount = (customVal?: number) => {
+    const rawVal = customVal !== undefined ? customVal : parseFloat(investAmount)
+    if (isNaN(rawVal) || rawVal <= 0) {
+      setInvestAmountError('Veuillez entrer un montant valide.')
+      setValidatedPlan(null)
+      return
+    }
+    if (rawVal < MIN_BANK_INVEST) {
+      setInvestAmountError(`Le montant minimum à investir est de ${MIN_BANK_INVEST.toLocaleString()} XAF.`)
+      setValidatedPlan(null)
+      return
+    }
+    setInvestAmountError('')
+
+    const plan = getMatchedBankPlan(rawVal)
+    const duration = plan.duration || 30
+    const dailyReturnPct = plan.dailyReturn || 6.83
+    const dailyGain = Math.round(rawVal * dailyReturnPct / 100)
+    const totalReturn = Math.round(rawVal * (1 + (dailyReturnPct * duration) / 100))
+
+    setValidatedPlan({
+      plan,
+      amount: rawVal,
+      dailyGain,
+      totalReturn,
+      duration,
+      dailyReturnPct,
+    })
+  }
+
+  // Boutons rapides de sélection de montant
+  const handleQuickAmount = (val: number | 'all') => {
+    const targetAmt = val === 'all' ? Math.floor(balance) : val
+    setInvestAmount(targetAmt > 0 ? targetAmt.toString() : '')
+    if (targetAmt >= MIN_BANK_INVEST) {
+      setInvestAmountError('')
+      handleValidateAmount(targetAmt)
+    } else {
+      setInvestAmountError(`Le montant (${targetAmt.toLocaleString()} XAF) est inférieur au minimum requis de ${MIN_BANK_INVEST.toLocaleString()} XAF.`)
+      setValidatedPlan(null)
+    }
+  }
+
+  // Redirection immédiate vers l'onglet dépôt avec montant pré-rempli
+  const handleGoToDeposit = (missingAmount: number) => {
+    setTab('depot')
+    setForm(prev => ({
+      ...prev,
+      amount: Math.max(missingAmount, MIN_DEPOSIT).toString(),
+    }))
+    toast.success(`Montant manquant (${missingAmount.toLocaleString()} XAF) pré-rempli pour votre dépôt.`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Confirmer l'investissement depuis le solde disponible
+  const handleConfirmInvest = async () => {
+    if (!validatedPlan) return
+    const { amount, plan } = validatedPlan
+
+    // Vérification du solde disponible
+    if (balance < amount) {
+      const missing = amount - balance
+      toast.error(`Solde insuffisant. Il vous manque ${missing.toLocaleString()} XAF.`)
+      handleGoToDeposit(missing)
+      return
+    }
+
+    setInvesting(plan.id || 'custom')
     try {
       const res = await fetch('/api/invest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId: plan.id,
-          amount: userAmount,
+          amount,
           phone: form.phone,
           operator: form.operator,
         })
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.message)
+      if (!res.ok) {
+        if (data.insufficientBalance) {
+          toast.error(data.message)
+          handleGoToDeposit(data.needed)
+          return
+        }
+        throw new Error(data.message)
+      }
 
-      const duration = plan.duration || 30
-      const dailyReturnPct = plan.dailyReturn || 0
-      const expectedTotal = Math.round(userAmount * (1 + (dailyReturnPct * duration) / 100))
-      const dailyGain = Math.round(userAmount * dailyReturnPct / 100)
-
-      // Déclencher le modal vert avec animation
+      // Déclencher le modal vert avec animation de souscription
       setSuccessPlanData({
         planName: plan.name,
-        amount: userAmount,
-        dailyGain,
-        totalReturn: expectedTotal,
-        duration,
+        amount,
+        dailyGain: validatedPlan.dailyGain,
+        totalReturn: validatedPlan.totalReturn,
+        duration: validatedPlan.duration,
         invoice: data.invoice,
       })
 
@@ -338,142 +421,254 @@ function BanqueContent() {
           </div>
         </div>
 
-        {/* TAB 3: PLANS D'INVESTISSEMENT BANCAIRE */}
+        {/* TAB 3: INVESTISSEMENTS BANCAIRES À MONTANT LIBRE */}
         {tab === 'plans' ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-white font-black text-sm uppercase tracking-[0.2em] flex items-center gap-2">
-                <Landmark className="w-4 h-4 text-cyan-400" /> Plans d'Investissement Bancaire
+                <Landmark className="w-4 h-4 text-cyan-400" /> Investissement Bancaire Personnalisé
               </h2>
-              <span className="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
-                Cycle 30 Jours
+              <span className="text-[10px] text-cyan-400 font-bold bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
+                Min. 2 500 XAF
               </span>
             </div>
 
-            <p className="text-slate-400 text-xs px-1">
-              Souscrivez à un plan, téléchargez votre facture officielle et transmettez-la dans le groupe pour validation. Vos gains journaliers seront versés sur votre solde chaque jour pendant 30 jours !
-            </p>
-            
-            {plansLoading ? (
-              <div className="flex justify-center py-10"><Clock className="w-6 h-6 text-cyan-500 animate-spin" /></div>
-            ) : (
-              <div className="grid gap-4">
-                {bankPlans.map((plan, i) => {
-                  const Icon = BANK_ICONS[plan.icon] || Landmark
-                  const isLocked = plan.vipRequired > userVip
-                  const duration = plan.duration || 30
-                  const dailyReturnPct = plan.dailyReturn || 0
+            {/* Formulaire de saisie du montant (Pas de plans affichés par défaut) */}
+            <div className="glass-card p-6 border-white/10 relative overflow-hidden bg-slate-900/70">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
-                  // Montant saisi par l'utilisateur (ou minAmount par défaut)
-                  const rawInput = bankAmounts[plan.id] ?? ''
-                  const userAmount = parseFloat(rawInput) || 0
-                  const displayAmount = userAmount > 0 ? userAmount : plan.minAmount
-                  const computedDailyGain = Math.round(displayAmount * dailyReturnPct / 100)
-                  const computedTotal = Math.round(displayAmount * (1 + (dailyReturnPct * duration) / 100))
+              <div className="relative z-10 space-y-4">
+                <div>
+                  <h3 className="text-white font-black text-base tracking-tight mb-1">
+                    Entrez votre montant à investir
+                  </h3>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    Définissez librement votre investissement (minimum <strong className="text-cyan-400">2 500 XAF</strong>). Dès validation, votre plan personnalisé avec le calcul exact de vos gains quotidiens et totaux s'affichera.
+                  </p>
+                </div>
 
-                  return (
-                    <motion.div
-                      key={plan.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.08 }}
-                      className={`glass-card p-5 border-white/5 relative overflow-hidden group bg-slate-900/60 ${isLocked ? 'opacity-60' : ''}`}
+                {/* Rappel solde disponible */}
+                <div className="flex items-center justify-between bg-white/[0.04] p-3 rounded-2xl border border-white/5">
+                  <span className="text-slate-400 text-xs font-bold flex items-center gap-2">
+                    <Wallet className="w-3.5 h-3.5 text-cyan-400" /> Solde disponible :
+                  </span>
+                  <span className="text-white font-black text-sm">
+                    {balance.toLocaleString()} <span className="text-cyan-400 text-xs">XAF</span>
+                  </span>
+                </div>
+
+                {/* Champ de saisie du montant */}
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2 ml-1">
+                    Montant à investir <span className="text-cyan-400">(XAF)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={2500}
+                      step={100}
+                      value={investAmount}
+                      onChange={e => {
+                        const val = e.target.value
+                        setInvestAmount(val)
+                        if (parseFloat(val) >= 2500) {
+                          setInvestAmountError('')
+                        }
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleValidateAmount()
+                        }
+                      }}
+                      placeholder="Ex: 10 000"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white font-black text-lg placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all pr-16"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-cyan-400 text-sm font-black">XAF</span>
+                  </div>
+
+                  {investAmountError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-rose-400 text-xs font-bold mt-2 flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl"
                     >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-500/20 transition-all" />
+                      <AlertTriangle className="w-4 h-4 shrink-0" /> {investAmountError}
+                    </motion.p>
+                  )}
+                </div>
 
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
-                          <Icon className="w-6 h-6 text-cyan-400" />
+                {/* Montants rapides */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 ml-1">Montants rapides :</span>
+                  <div className="flex flex-wrap gap-2">
+                    {[2500, 5000, 10000, 25000, 50000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => handleQuickAmount(amt)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                          investAmount === amt.toString()
+                            ? 'bg-cyan-500 text-black border-cyan-400 shadow-lg shadow-cyan-500/20 font-black'
+                            : 'bg-white/5 text-slate-300 border-white/5 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {amt.toLocaleString()} XAF
+                      </button>
+                    ))}
+                    {balance >= 2500 && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAmount('all')}
+                        className="px-3 py-2 rounded-xl text-xs font-black transition-all border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                      >
+                        ⚡ Tout mon solde ({balance.toLocaleString()} XAF)
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bouton pour valider et faire apparaître le plan */}
+                <button
+                  type="button"
+                  onClick={() => handleValidateAmount()}
+                  className="w-full mt-2 py-4 rounded-2xl font-black text-xs uppercase tracking-widest bg-gradient-to-r from-cyan-500 to-teal-400 text-black hover:opacity-95 shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Valider et afficher mon plan
+                </button>
+              </div>
+            </div>
+
+            {/* PLAN D'INVESTISSEMENT (APPARAÎT UNIQUEMENT SI L'UTILISATEUR VALIDE UN MONTANT) */}
+            <AnimatePresence>
+              {validatedPlan && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="glass-card p-6 border-cyan-500/30 relative overflow-hidden bg-gradient-to-b from-slate-900/90 via-slate-900/70 to-slate-950/90 shadow-2xl shadow-cyan-500/10"
+                >
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="relative z-10 space-y-5">
+                    {/* Header du plan généré */}
+                    <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-inner">
+                          <Landmark className="w-6 h-6" />
                         </div>
-                        <div className="flex-1">
+                        <div>
                           <span className="text-[9px] font-black uppercase text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
                             Plan Bancaire Garanti
                           </span>
-                          <h3 className="text-white font-black text-xl tracking-tight uppercase mt-0.5">{plan.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                              +{computedDailyGain.toLocaleString()} XAF / jour
-                            </span>
-                            {isLocked && (
-                              <span className="bg-rose-500/20 text-rose-400 text-[8px] font-black px-2 py-0.5 rounded-full border border-rose-500/20">
-                                VIP {plan.vipRequired} REQUIS
-                              </span>
-                            )}
+                          <h3 className="text-white font-black text-xl tracking-tight uppercase mt-1">
+                            {validatedPlan.plan.name}
+                          </h3>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-emerald-400 text-xs font-black bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-xl block">
+                          +{validatedPlan.dailyReturnPct}% / jour
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-1 block">Cycle {validatedPlan.duration} jours</span>
+                      </div>
+                    </div>
+
+                    {/* Grille des 4 métriques du plan */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5 text-center">
+                      <div className="p-2">
+                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Investissement</p>
+                        <p className="text-white font-black text-base mt-1">
+                          {validatedPlan.amount.toLocaleString()} <span className="text-[10px] text-cyan-400">XAF</span>
+                        </p>
+                      </div>
+                      <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <p className="text-emerald-400 text-[9px] font-black uppercase tracking-wider">Gain / Jour</p>
+                        <p className="text-emerald-300 font-black text-base mt-1">
+                          +{validatedPlan.dailyGain.toLocaleString()} <span className="text-[10px]">XAF</span>
+                        </p>
+                      </div>
+                      <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                        <p className="text-amber-400 text-[9px] font-black uppercase tracking-wider">Total Retour</p>
+                        <p className="text-amber-300 font-black text-base mt-1">
+                          {validatedPlan.totalReturn.toLocaleString()} <span className="text-[10px]">XAF</span>
+                        </p>
+                      </div>
+                      <div className="p-2">
+                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-wider">Bénéfice Net</p>
+                        <p className="text-cyan-400 font-black text-base mt-1">
+                          +{(validatedPlan.totalReturn - validatedPlan.amount).toLocaleString()} <span className="text-[10px]">XAF</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Zone de vérification du solde et action */}
+                    {balance < validatedPlan.amount ? (
+                      /* CAS 1 : SOLDE INSUFFISANT -> Inviter à faire un dépôt */
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-amber-300 text-xs font-black uppercase tracking-wider">Solde Insuffisant</p>
+                            <p className="text-slate-300 text-xs mt-1 leading-relaxed">
+                              Votre solde actuel est de <strong className="text-white">{balance.toLocaleString()} XAF</strong>. Il vous manque <strong className="text-amber-300">{(validatedPlan.amount - balance).toLocaleString()} XAF</strong> pour activer ce plan.
+                            </p>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Champ montant personnalisable */}
-                      <div className="mb-4">
-                        <label className="block text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-2 ml-1">
-                          Montant à investir <span className="text-cyan-400">(min. 2 500 XAF)</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min={2500}
-                            max={plan.maxAmount || undefined}
-                            step={100}
-                            value={rawInput}
-                            onChange={e => {
-                              const val = e.target.value
-                              setBankAmounts(prev => ({ ...prev, [plan.id]: val }))
-                              if (parseFloat(val) >= 2500) {
-                                setBankAmountErrors(prev => ({ ...prev, [plan.id]: '' }))
-                              }
-                            }}
-                            placeholder={plan.minAmount.toLocaleString()}
-                            disabled={isLocked}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all pr-14"
-                          />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-black">XAF</span>
-                        </div>
-                        {bankAmountErrors[plan.id] && (
-                          <p className="text-rose-400 text-[11px] font-bold mt-1.5 ml-1 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />{bankAmountErrors[plan.id]}
-                          </p>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleGoToDeposit(validatedPlan.amount - balance)}
+                          className="w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:opacity-95 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                          <ArrowDownCircle className="w-4 h-4" />
+                          Faire un dépôt de {(validatedPlan.amount - balance).toLocaleString()} XAF
+                        </button>
                       </div>
+                    ) : (
+                      /* CAS 2 : SOLDE SUFFISANT -> Confirmer et investir */
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-emerald-300 text-xs font-black uppercase tracking-wider">Solde Disponible Suffisant</p>
+                            <p className="text-slate-300 text-xs mt-1 leading-relaxed">
+                              Votre solde (<strong className="text-white">{balance.toLocaleString()} XAF</strong>) couvre cet investissement. Le montant sera déduit de votre compte et commencera à générer des gains immédiatement.
+                            </p>
+                          </div>
+                        </div>
 
-                      {/* Grille dynamique: Montant, Gain/jour, Montant Total, Durée */}
-                      <div className="grid grid-cols-3 gap-2 mb-4 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5 text-center">
-                        <div>
-                          <p className="text-slate-500 text-[8px] font-black uppercase tracking-wider">Investissement</p>
-                          <p className="text-white font-bold text-xs sm:text-sm mt-0.5">
-                            {displayAmount.toLocaleString()} <span className="text-[10px] text-slate-400">XAF</span>
-                          </p>
-                        </div>
-                        <div className="border-x border-white/5 bg-amber-500/10 rounded-xl px-1 py-0.5 border border-amber-500/20">
-                          <p className="text-amber-400 text-[8px] font-black uppercase tracking-wider">Total Retour</p>
-                          <p className="text-amber-300 font-black text-xs sm:text-sm mt-0.5">
-                            {computedTotal.toLocaleString()} <span className="text-[10px] text-amber-400">XAF</span>
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-[8px] font-black uppercase tracking-wider">Durée</p>
-                          <p className="text-cyan-400 font-bold text-xs sm:text-sm mt-0.5">
-                            {duration} Jours
-                          </p>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={handleConfirmInvest}
+                          disabled={investing !== null}
+                          className="w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest bg-gradient-to-r from-emerald-500 to-teal-400 text-black hover:opacity-95 shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                          <FileText className="w-4 h-4" />
+                          {investing ? 'Activation en cours...' : `Confirmer et Investir ${validatedPlan.amount.toLocaleString()} XAF`}
+                        </button>
                       </div>
+                    )}
 
+                    <div className="flex items-center justify-between pt-1">
                       <button
-                        onClick={() => !isLocked && handleInvestBank(plan)}
-                        disabled={isLocked || investing === plan.id}
-                        className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 ${
-                          isLocked 
-                            ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-cyan-500 to-teal-500 text-black hover:opacity-95 shadow-cyan-500/20'
-                        }`}
+                        type="button"
+                        onClick={() => {
+                          setValidatedPlan(null)
+                          setInvestAmount('')
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-white underline underline-offset-4 font-bold"
                       >
-                        <FileText className="w-4 h-4" />
-                        {investing === plan.id ? 'GÉNÉRATION FACTURE...' : isLocked ? 'VERROUILLÉ' : 'SOUSCRIRE & OBTENIR FACTURE'}
+                        Modifier le montant
                       </button>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            )}
+                      <span className="text-[10px] text-slate-500 font-medium">Gains crédités quotidiennement</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ) : (
           /* Formulaire Dépôt / Retrait */

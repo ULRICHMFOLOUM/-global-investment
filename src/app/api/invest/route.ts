@@ -13,11 +13,28 @@ export async function POST(req: NextRequest) {
     const userId = (session.user as any).id
     const { planId, amount, phone, operator } = await req.json()
 
-    if (!planId || !amount) {
+    let targetPlanId = planId
+    if (!targetPlanId) {
+      // Si aucun planId fourni mais qu'un montant est saisi, trouver le plan bancaire adapté
+      const matched = await prisma.plan.findFirst({
+        where: {
+          category: 'BANK',
+          isActive: true,
+          maxAmount: { gte: amount },
+        },
+        orderBy: { minAmount: 'asc' },
+      }) || await prisma.plan.findFirst({
+        where: { category: 'BANK', isActive: true },
+        orderBy: { minAmount: 'asc' },
+      })
+      if (matched) targetPlanId = matched.id
+    }
+
+    if (!targetPlanId || !amount) {
       return NextResponse.json({ message: 'Plan et montant requis' }, { status: 400 })
     }
 
-    const plan = await prisma.plan.findUnique({ where: { id: planId } })
+    const plan = await prisma.plan.findUnique({ where: { id: targetPlanId } })
     if (!plan || !plan.isActive) {
       return NextResponse.json({ message: 'Plan invalide ou inactif' }, { status: 400 })
     }
@@ -25,11 +42,11 @@ export async function POST(req: NextRequest) {
     // Pour les plans bancaires, minimum absolu de 2500 XAF (montant libre)
     const BANK_MIN = 2500
     const effectiveMin = plan.category === 'BANK' ? BANK_MIN : plan.minAmount
-    if (amount < effectiveMin || amount > plan.maxAmount) {
+    if (amount < effectiveMin) {
       return NextResponse.json({ 
         message: plan.category === 'BANK'
-          ? `Montant invalide. Minimum ${BANK_MIN.toLocaleString()} XAF, maximum ${plan.maxAmount.toLocaleString()} XAF.`
-          : `Montant invalide pour ce plan (${plan.minAmount.toLocaleString()} – ${plan.maxAmount.toLocaleString()} XAF)`
+          ? `Montant minimum requis : ${BANK_MIN.toLocaleString()} XAF.`
+          : `Montant minimum requis pour ce plan : ${plan.minAmount.toLocaleString()} XAF.`
       }, { status: 400 })
     }
 
@@ -40,15 +57,20 @@ export async function POST(req: NextRequest) {
 
     if (user.balance < amount) {
       return NextResponse.json({ 
-        message: `Solde insuffisant (${user.balance.toLocaleString()} XAF disponible). Veuillez effectuer un dépôt de ${amount.toLocaleString()} XAF pour souscrire à ce plan.` 
+        message: `Solde insuffisant (${user.balance.toLocaleString()} XAF disponible). Il vous manque ${(amount - user.balance).toLocaleString()} XAF. Veuillez recharger votre compte.`,
+        insufficientBalance: true,
+        needed: amount - user.balance,
+        currentBalance: user.balance,
       }, { status: 400 })
     }
 
     const duration = plan.duration || 30
-    const expectedTotalReturn = plan.totalReturn && plan.totalReturn > 0
-      ? plan.totalReturn
-      : Math.round(amount * (1 + (plan.dailyReturn * duration) / 100))
-    const dailyGain = Math.round(expectedTotalReturn / duration)
+    const expectedTotalReturn = plan.category === 'BANK'
+      ? Math.round(amount * (1 + (plan.dailyReturn * duration) / 100))
+      : (plan.totalReturn && plan.totalReturn > 0
+          ? plan.totalReturn
+          : Math.round(amount * (1 + (plan.dailyReturn * duration) / 100)))
+    const dailyGain = Math.round(amount * plan.dailyReturn / 100)
 
     const now = new Date()
     const endDate = new Date(now)
@@ -68,7 +90,7 @@ export async function POST(req: NextRequest) {
       const inv = await tx.investment.create({
         data: {
           userId,
-          planId,
+          planId: plan.id,
           amount,
           dailyReturn: plan.dailyReturn,
           totalReturn: 0,

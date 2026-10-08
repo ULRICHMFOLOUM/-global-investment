@@ -665,7 +665,7 @@ export default function InvestPage() {
                             {!canAffordBank && !isLocked && inputAmount > 0 && (
                               <div className="w-full text-yellow-400 text-xs font-bold bg-yellow-400/10 border border-yellow-400/20 px-4 py-3 rounded-2xl flex items-center justify-between gap-2 mb-3">
                                 <span>Il vous manque {(inputAmount - userBalance).toLocaleString()} XAF.</span>
-                                <Link href="/dashboard/banque?tab=depot" className="text-[10px] font-black uppercase text-white bg-yellow-500/30 hover:bg-yellow-500/50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                                <Link href={`/dashboard/banque?tab=depot&amount=${inputAmount - userBalance}`} className="text-[10px] font-black uppercase text-white bg-yellow-500/30 hover:bg-yellow-500/50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
                                   Recharger →
                                 </Link>
                               </div>
