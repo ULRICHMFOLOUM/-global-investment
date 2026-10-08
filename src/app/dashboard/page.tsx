@@ -192,23 +192,32 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
-                      tx.type === 'DEPOSIT' ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' : 'bg-rose-500/10 group-hover:bg-rose-500/20'
+                      tx.type === 'DEPOSIT' ? 'bg-emerald-500/10 group-hover:bg-emerald-500/20' :
+                      tx.type === 'PLAN_SUBSCRIPTION' ? 'bg-blue-500/10 group-hover:bg-blue-500/20' :
+                      tx.type === 'BONUS' ? 'bg-amber-500/10 group-hover:bg-amber-500/20' :
+                      'bg-rose-500/10 group-hover:bg-rose-500/20'
                     }`}>
-                      {tx.type === 'DEPOSIT' 
-                        ? <ArrowDownCircle className="w-5 h-5 text-emerald-400" />
-                        : <ArrowUpCircle className="w-5 h-5 text-rose-400" />
+                      {tx.type === 'DEPOSIT' ? <ArrowDownCircle className="w-5 h-5 text-emerald-400" /> :
+                       tx.type === 'PLAN_SUBSCRIPTION' ? <Crown className="w-5 h-5 text-blue-400" /> :
+                       tx.type === 'BONUS' ? <Gift className="w-5 h-5 text-amber-400" /> :
+                       <ArrowUpCircle className="w-5 h-5 text-rose-400" />
                       }
                     </div>
                     <div>
                       <p className="text-white text-sm font-black uppercase tracking-tight">
-                        {tx.type === 'DEPOSIT' ? 'Validation Dépôt' : 'Traitement Retrait'}
+                        {tx.type === 'DEPOSIT' ? 'Validation Dépôt' :
+                         tx.type === 'PLAN_SUBSCRIPTION' ? 'Souscription Plan' :
+                         tx.type === 'BONUS' ? 'Bonus Affiliation' :
+                         'Traitement Retrait'}
                       </p>
-                      <p className="text-slate-600 text-[10px] font-bold uppercase">{tx.operator} — {new Date(tx.createdAt).toLocaleDateString('fr-FR')}</p>
+                      <p className="text-slate-500 text-[10px] font-bold uppercase">{tx.operator} — {new Date(tx.createdAt).toLocaleDateString('fr-FR')}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`font-black text-lg tracking-tight ${tx.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {tx.type === 'DEPOSIT' ? '+' : '-'}{tx.amount.toLocaleString()}
+                    <p className={`font-black text-lg tracking-tight ${
+                      tx.type === 'DEPOSIT' || tx.type === 'BONUS' ? 'text-emerald-400' : 'text-slate-200'
+                    }`}>
+                      {tx.type === 'DEPOSIT' || tx.type === 'BONUS' ? '+' : '-'}{tx.amount.toLocaleString()} XAF
                     </p>
                     <span className={`text-[8px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full ${
                       tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-400' : 

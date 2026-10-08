@@ -33,6 +33,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Utilisateur introuvable' }, { status: 404 })
     }
 
+    if (user.balance < amount) {
+      return NextResponse.json({ 
+        message: `Solde insuffisant (${user.balance.toLocaleString()} XAF disponible). Veuillez effectuer un dépôt de ${amount.toLocaleString()} XAF pour souscrire à ce plan.` 
+      }, { status: 400 })
+    }
+
     const duration = plan.duration || 30
     const expectedTotalReturn = plan.totalReturn && plan.totalReturn > 0
       ? plan.totalReturn
@@ -45,9 +51,16 @@ export async function POST(req: NextRequest) {
 
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`
 
-    // Créer la souscription en statut PENDING (En attente de validation par l'admin)
-    const [investment, transaction] = await prisma.$transaction([
-      prisma.investment.create({
+    // Activation immédiate de la souscription avec déduction du solde
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Débiter le solde de l'utilisateur
+      await tx.user.update({
+        where: { id: userId },
+        data: { balance: { decrement: amount } },
+      })
+
+      // 2. Créer l'investissement actif
+      const inv = await tx.investment.create({
         data: {
           userId,
           planId,
@@ -56,39 +69,106 @@ export async function POST(req: NextRequest) {
           totalReturn: 0,
           startDate: now,
           endDate,
-          status: 'PENDING',
+          status: 'ACTIVE',
         }
-      }),
-      prisma.transaction.create({
+      })
+
+      // 3. Enregistrer la transaction confirmée
+      await tx.transaction.create({
         data: {
           userId,
           amount,
           fee: 0,
           type: 'PLAN_SUBSCRIPTION',
-          status: 'PENDING',
-          operator: operator || 'ORANGE/MTN',
+          status: 'SUCCESS',
+          operator: operator || 'SOLDE DU COMPTE',
           phone: phone || user.phone,
           transactionId: invoiceNumber,
           country: user.country || 'CM',
         }
-      }),
-      prisma.notification.create({
+      })
+
+      // 4. Bonus de parrainage de 1 000 FCFA au parrain si existant
+      if (user.referredBy) {
+        const referrer = await tx.user.findFirst({
+          where: {
+            OR: [
+              { id: user.referredBy },
+              { referralCode: user.referredBy },
+            ],
+          },
+        })
+
+        if (referrer) {
+          await tx.user.update({
+            where: { id: referrer.id },
+            data: {
+              balance: { increment: 1000 },
+              bonusBalance: { increment: 1000 },
+            },
+          })
+
+          await tx.transaction.create({
+            data: {
+              userId: referrer.id,
+              amount: 1000,
+              type: "BONUS",
+              status: "SUCCESS",
+              operator: "SYSTEM",
+              phone: referrer.phone,
+              transactionId: `BONUS-REF-${Date.now()}`,
+              country: referrer.country || "CM",
+            },
+          })
+
+          await tx.notification.create({
+            data: {
+              userId: referrer.id,
+              title: "🎉 Bonus de Parrainage (+1 000 FCFA) !",
+              message: `Félicitations ! Votre filleul ${user.name} a activé le plan "${plan.name}". Vous avez reçu 1 000 FCFA sur votre solde !`,
+              type: "BONUS",
+            },
+          })
+        }
+      }
+
+      // 5. Notification de succès pour le souscripteur
+      await tx.notification.create({
         data: {
           userId,
-          title: '📋 Facture de Souscription Émise',
-          message: `Votre souscription au plan "${plan.name}" (${amount.toLocaleString()} XAF) a été enregistrée avec la facture ${invoiceNumber}. Veuillez la transmettre dans le groupe officiel pour validation.`,
+          title: '🎉 Plan Activé avec Succès !',
+          message: `Félicitations ! Votre souscription au plan "${plan.name}" (${amount.toLocaleString()} XAF) est validée et active. Vos gains journaliers de +${dailyGain.toLocaleString()} XAF/jour débutent immédiatement !`,
           type: 'PLAN',
         }
       })
-    ])
+
+      return inv
+    })
 
     return NextResponse.json({ 
       success: true, 
-      status: 'PENDING',
-      message: `Souscription initiée avec succès ! Votre facture est disponible pour validation.`,
+      status: 'ACTIVE',
+      message: `Plan "${plan.name}" activé avec succès ! Vos gains journaliers commencent dès aujourd'hui.`,
+      planName: plan.name,
+      amount,
+      dailyGain,
+      expectedTotalReturn,
+      duration,
+      investment: {
+        id: result.id,
+        planId: plan.id,
+        planName: plan.name,
+        amount,
+        dailyGain,
+        totalReturn: expectedTotalReturn,
+        duration,
+        startDate: now.toISOString(),
+        endDate: endDate.toISOString(),
+        status: 'ACTIVE',
+      },
       invoice: {
         invoiceNumber,
-        investmentId: investment.id,
+        investmentId: result.id,
         createdAt: now.toISOString(),
         userName: user.name,
         userEmail: user.email,
@@ -102,7 +182,7 @@ export async function POST(req: NextRequest) {
         totalReturn: expectedTotalReturn,
         dailyGain,
         dailyReturnRate: plan.dailyReturn,
-        status: 'PENDING',
+        status: 'ACTIVE',
       }
     })
   } catch (error: any) {

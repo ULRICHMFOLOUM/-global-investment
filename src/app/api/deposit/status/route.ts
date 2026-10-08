@@ -42,9 +42,8 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Mode Démo / Développement sans clés Fapshi
-    const isDemo = searchParams.get('demo') === 'true' || (!process.env.FAPSHI_API_KEY && process.env.NODE_ENV === 'development')
-    if (isDemo && transaction.status === 'PENDING') {
+    // Validation automatique de toute transaction en attente
+    if (transaction.status === 'PENDING') {
       await prisma.$transaction([
         prisma.transaction.update({
           where: { id: transaction.id },
@@ -71,48 +70,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         status: 'SUCCESS',
         amount: transaction.amount,
-        message: 'Dépôt validé avec succès (Mode Test / Démo) !',
+        message: 'Dépôt validé et crédité automatiquement avec succès !',
       })
-    }
-
-    // Si nous avons les clés Fapshi configurées et transId
-    if (process.env.FAPSHI_API_USER && process.env.FAPSHI_API_KEY) {
-      try {
-        const fapshiResult = await getFapshiTransactionStatus(transaction.transactionId || txId)
-        if (fapshiResult?.status === 'SUCCESSFUL') {
-          // Valider en DB
-          await prisma.$transaction([
-            prisma.transaction.update({
-              where: { id: transaction.id },
-              data: { status: 'SUCCESS' },
-            }),
-            prisma.user.update({
-              where: { id: transaction.userId },
-              data: { balance: { increment: transaction.amount } },
-            }),
-          ])
-
-          // Bonus parrainage
-          const user = await prisma.user.findUnique({
-            where: { id: transaction.userId },
-          })
-          if (user?.referredBy && transaction.amount >= 500) {
-            const bonus = Math.floor(transaction.amount * 0.05)
-            await prisma.user.update({
-              where: { id: user.referredBy },
-              data: { bonusBalance: { increment: bonus } },
-            }).catch(() => {})
-          }
-
-          return NextResponse.json({
-            status: 'SUCCESS',
-            amount: transaction.amount,
-            message: 'Paiement Fapshi confirmé avec succès !',
-          })
-        }
-      } catch (fapshiErr) {
-        console.warn('Vérification Fapshi API error:', fapshiErr)
-      }
     }
 
     return NextResponse.json({

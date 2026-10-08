@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+import { processDailyGains } from '@/lib/gains'
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -10,6 +12,10 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ message: 'Non autorisé' }, { status: 401 })
 
   const userId = (session.user as any).id
+
+  // Crédit automatique des dividendes dus
+  await processDailyGains(userId).catch(err => console.error('Auto gains error in /api/dashboard:', err))
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 

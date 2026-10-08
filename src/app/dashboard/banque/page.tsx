@@ -25,6 +25,7 @@ import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import BackButton from '@/components/ui/BackButton'
 import SubscriptionInvoiceModal, { InvoiceData } from '@/components/invoice/SubscriptionInvoiceModal'
+import PlanSuccessModal, { PlanSuccessData } from '@/components/plans/PlanSuccessModal'
 import toast from 'react-hot-toast'
 
 const OPERATORS = [
@@ -75,6 +76,7 @@ function BanqueContent() {
   // Invoice Modal state
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
   const [currentInvoice, setCurrentInvoice] = useState<InvoiceData | null>(null)
+  const [successPlanData, setSuccessPlanData] = useState<PlanSuccessData | null>(null)
 
   const fetchUserData = () => {
     fetch('/api/user/me')
@@ -193,7 +195,7 @@ function BanqueContent() {
           setBalance(prev => prev - parseFloat(form.amount))
           fetchWithdrawInfo()
         } else {
-          setSuccessMessage("Dépôt enregistré avec succès ! En attente de validation par l'administrateur.")
+          setSuccessMessage(data.message || `Dépôt de ${parseFloat(form.amount).toLocaleString()} XAF validé avec succès ! Votre solde est immédiatement disponible.`)
           fetchUserData()
         }
         setForm({ amount: '', phone: '', operator: 'orange', transactionId: '' })
@@ -205,7 +207,7 @@ function BanqueContent() {
     }
   }
 
-  // Souscription au plan bancaire avec Facture en couleur
+  // Souscription au plan bancaire avec Facture et Modal Vert Animé
   const handleInvestBank = async (plan: any) => {
     setInvesting(plan.id)
     try {
@@ -222,14 +224,25 @@ function BanqueContent() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.message)
 
-      toast.success('🎉 Souscription initiée ! Votre facture est disponible.')
-      if (data.invoice) {
-        setCurrentInvoice(data.invoice)
-        setInvoiceModalOpen(true)
-      }
+      const duration = plan.duration || 30
+      const expectedTotal = plan.totalReturn && plan.totalReturn > 0
+        ? plan.totalReturn
+        : Math.round(plan.minAmount * (1 + (plan.dailyReturn * duration) / 100))
+      const dailyGain = Math.round(expectedTotal / duration)
+
+      // Déclencher le modal vert avec animation
+      setSuccessPlanData({
+        planName: plan.name,
+        amount: plan.minAmount,
+        dailyGain,
+        totalReturn: expectedTotal,
+        duration,
+        invoice: data.invoice,
+      })
+
       fetchUserData()
     } catch (err: any) {
-      alert('❌ ' + err.message)
+      toast.error(err.message || 'Erreur lors de la souscription')
     } finally {
       setInvesting(null)
     }
@@ -349,8 +362,11 @@ function BanqueContent() {
                           <Icon className="w-6 h-6 text-cyan-400" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-white font-black text-lg tracking-tight">{plan.name}</h3>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[9px] font-black uppercase text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                            Plan Bancaire Garanti
+                          </span>
+                          <h3 className="text-white font-black text-xl tracking-tight uppercase mt-0.5">{plan.name}</h3>
+                          <div className="flex items-center gap-2 mt-1">
                             <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                               +{dailyGain.toLocaleString()} XAF / jour
                             </span>
@@ -363,7 +379,7 @@ function BanqueContent() {
                         </div>
                       </div>
 
-                      {/* Grille des montants : Montant, Total, Gain/jour */}
+                      {/* Grille des montants : Montant, Montant Total, Durée */}
                       <div className="grid grid-cols-3 gap-2 mb-4 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5 text-center">
                         <div>
                           <p className="text-slate-500 text-[8px] font-black uppercase tracking-wider">Investissement</p>
@@ -371,10 +387,10 @@ function BanqueContent() {
                             {plan.minAmount.toLocaleString()} <span className="text-[10px] text-slate-400">XAF</span>
                           </p>
                         </div>
-                        <div className="border-x border-white/5">
-                          <p className="text-slate-500 text-[8px] font-black uppercase tracking-wider">Total à Gagner</p>
-                          <p className="text-yellow-400 font-bold text-xs sm:text-sm mt-0.5">
-                            {expectedTotal.toLocaleString()} <span className="text-[10px] text-yellow-500">XAF</span>
+                        <div className="border-x border-white/5 bg-amber-500/10 rounded-xl px-1 py-0.5 border border-amber-500/20">
+                          <p className="text-amber-400 text-[8px] font-black uppercase tracking-wider">Montant Total</p>
+                          <p className="text-amber-300 font-black text-xs sm:text-sm mt-0.5">
+                            {expectedTotal.toLocaleString()} <span className="text-[10px] text-amber-400">XAF</span>
                           </p>
                         </div>
                         <div>
@@ -567,6 +583,20 @@ function BanqueContent() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Modal Vert Animé de Confirmation de Souscription */}
+        <PlanSuccessModal
+          isOpen={!!successPlanData}
+          onClose={() => setSuccessPlanData(null)}
+          data={successPlanData}
+          onViewInvestments={() => {
+            setTab('plans')
+          }}
+          onOpenInvoice={(inv) => {
+            setCurrentInvoice(inv)
+            setInvoiceModalOpen(true)
+          }}
+        />
 
         {/* Modal Facture en Couleur */}
         <SubscriptionInvoiceModal

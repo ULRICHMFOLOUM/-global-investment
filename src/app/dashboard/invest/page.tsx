@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pickaxe, Gem, Crown, Zap, TrendingUp, Lock, Info } from 'lucide-react'
+import { Pickaxe, Gem, Crown, Zap, TrendingUp, Lock, Info, CheckCircle2, DollarSign } from 'lucide-react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { useSession, signOut } from 'next-auth/react'
 import BackButton from '@/components/ui/BackButton'
+import PlanSuccessModal, { PlanSuccessData } from '@/components/plans/PlanSuccessModal'
+import SubscriptionInvoiceModal, { InvoiceData } from '@/components/invoice/SubscriptionInvoiceModal'
+import toast from 'react-hot-toast'
+import Link from 'next/link'
 
 const PLAN_ICONS: Record<string, any> = {
   pickaxe: Pickaxe, gem: Gem, crown: Crown, zap: Zap,
@@ -18,10 +22,27 @@ export default function InvestPage() {
   const [userBalance, setUserBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [investing, setInvesting] = useState<string | null>(null)
-  const [selected, setSelected] = useState<any | null>(null)
-
   const [activeInvestments, setActiveInvestments] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  // Modals
+  const [successModalData, setSuccessModalData] = useState<PlanSuccessData | null>(null)
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
+  const [currentInvoice, setCurrentInvoice] = useState<InvoiceData | null>(null)
+
+  const reloadUserData = async () => {
+    try {
+      const [u, ai] = await Promise.all([
+        fetch('/api/user/me').then(r => r.json()),
+        fetch('/api/user/investments').then(r => r.json()).catch(() => []),
+      ])
+      if (u?.balance !== undefined) setUserBalance(u.balance)
+      if (u?.vipLevel !== undefined) setUserVip(u.vipLevel)
+      if (Array.isArray(ai)) setActiveInvestments(ai)
+    } catch (e) {
+      console.error('Error reloading user data:', e)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -75,9 +96,10 @@ export default function InvestPage() {
 
   const handleInvest = async (plan: any) => {
     if (userBalance < plan.minAmount) {
-      alert(`Solde insuffisant. Minimum requis : ${plan.minAmount.toLocaleString()} XAF`)
+      toast.error(`Solde insuffisant (${userBalance.toLocaleString()} XAF). Minimum requis : ${plan.minAmount.toLocaleString()} XAF. Veuillez recharger votre compte.`)
       return
     }
+
     setInvesting(plan.id)
     try {
       const res = await fetch('/api/invest', {
@@ -87,12 +109,28 @@ export default function InvestPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.message)
-      alert('✅ Investissement réussi ! Vos gains commencent maintenant.')
-      setUserBalance(prev => prev - plan.minAmount)
-      // Refresh active investments
-      fetch('/api/user/investments').then(r => r.json()).then(ai => setActiveInvestments(ai))
+
+      const duration = plan.duration || 30
+      const expectedTotal = plan.totalReturn && plan.totalReturn > 0
+        ? plan.totalReturn
+        : Math.round(plan.minAmount * (1 + (plan.dailyReturn * duration) / 100))
+      const dailyGain = Math.round(expectedTotal / duration)
+
+      // Affichage du modal vert animé de succès
+      setSuccessModalData({
+        planName: plan.name,
+        amount: plan.minAmount,
+        dailyGain,
+        totalReturn: expectedTotal,
+        duration,
+        invoice: data.invoice,
+      })
+
+      // Déduire le solde local et recharger
+      setUserBalance(prev => Math.max(0, prev - plan.minAmount))
+      reloadUserData()
     } catch (err: any) {
-      alert('❌ ' + err.message)
+      toast.error(err.message)
     } finally {
       setInvesting(null)
     }
@@ -114,10 +152,21 @@ export default function InvestPage() {
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Plans de minage</span>
         </div>
 
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6 relative overflow-hidden rounded-3xl bg-slate-800/50 border border-white/5">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/10 to-transparent pointer-events-none" />
-          <h1 className="text-4xl font-black text-white mb-2 tracking-tight">Investir</h1>
-          <p className="text-slate-400 max-w-md mx-auto">Faites fructifier votre capital avec nos plans de minage certifiés</p>
+        {/* Hero Banner */}
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6 px-4 relative overflow-hidden rounded-3xl bg-slate-800/50 border border-white/5">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/10 via-emerald-500/5 to-transparent pointer-events-none" />
+          <h1 className="text-3xl sm:text-4xl font-black text-white mb-2 tracking-tight">Investir dans les Plans</h1>
+          <p className="text-slate-400 max-w-md mx-auto text-xs sm:text-sm">
+            Faites fructifier votre capital. Tous les gains journaliers sont <strong className="text-emerald-400">automatiquement crédités</strong> sur votre solde chaque jour !
+          </p>
+
+          <div className="mt-4 inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-1.5 rounded-2xl">
+            <span className="text-slate-400 text-xs font-bold">Solde disponible :</span>
+            <span className="text-emerald-400 font-black text-sm">{userBalance.toLocaleString()} XAF</span>
+            <Link href="/dashboard/banque?tab=depot" className="ml-2 text-[10px] font-black uppercase text-cyan-400 underline hover:text-white">
+              + Déposer
+            </Link>
+          </div>
         </motion.div>
 
         {error ? (
@@ -150,61 +199,100 @@ export default function InvestPage() {
           </div>
         ) : (
           <div className="space-y-10">
-            {/* Active Investments Section */}
+            {/* Section : Mes investissements actifs */}
             {activeInvestments.length > 0 && (
-              <div>
-                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-yellow-400" />
-                  Mes investissements actifs
-                </h2>
+              <div id="active-investments">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-400" />
+                    Mes investissements actifs
+                  </h2>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full uppercase">
+                    {activeInvestments.length} Plan(s) en cours
+                  </span>
+                </div>
+
                 <div className="grid gap-4">
-                  {activeInvestments.map((inv, idx) => (
-                    <motion.div 
-                      key={inv.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="glass-card p-4 flex items-center justify-between bg-gradient-to-r from-emerald-500/5 to-transparent border-l-4 border-emerald-500"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                          <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  {activeInvestments.map((inv, idx) => {
+                    const dur = inv.plan?.duration || 30
+                    const planTotal = inv.plan?.totalReturn && inv.plan?.totalReturn > 0
+                      ? inv.plan.totalReturn
+                      : Math.round(inv.amount * (1 + (inv.dailyReturn * dur) / 100))
+
+                    return (
+                      <motion.div 
+                        key={inv.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="glass-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-500/10 via-slate-900/40 to-transparent border-l-4 border-emerald-500 shadow-lg"
+                      >
+                        <div className="flex items-start sm:items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                            <TrendingUp className="w-6 h-6 text-emerald-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-white font-black text-lg">{inv.plan?.name || 'Plan Actif'}</p>
+                              <span className="text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                                Dividendes Automatiques
+                              </span>
+                            </div>
+                            <p className="text-slate-400 text-xs mt-1">
+                              Investissement : <strong className="text-white font-bold">{inv.amount.toLocaleString()} XAF</strong> | Montant total prévu : <strong className="text-amber-400 font-bold">{planTotal.toLocaleString()} XAF</strong>
+                            </p>
+                            <p className="text-slate-500 text-[11px] mt-0.5">
+                              Expire le {new Date(inv.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-white font-bold">{inv.plan.name}</p>
-                          <p className="text-slate-500 text-xs">Prend fin le {new Date(inv.endDate).toLocaleDateString()}</p>
+
+                        <div className="sm:text-right flex sm:flex-col justify-between items-center sm:items-end border-t sm:border-t-0 border-white/5 pt-3 sm:pt-0">
+                          <div>
+                            <p className="text-emerald-400 font-black text-xl">+{inv.totalReturn.toLocaleString()} XAF</p>
+                            <p className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">Gains déjà perçus</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-emerald-400 font-black">+{inv.totalReturn.toLocaleString()} XAF</p>
-                        <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Gains accumulés</p>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    )
+                  })}
                 </div>
               </div>
             )}
 
             {/* Plans List */}
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Crown className="w-5 h-5 text-blue-400" />
-                Plans disponibles
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-blue-400" />
+                  Catalogue des Plans Disponibles
+                </h2>
+                <span className="text-slate-400 text-xs">
+                  {plans.length} options disponibles
+                </span>
+              </div>
+
               <div className="grid gap-6">
                 {plans.map((plan, i) => {
                   const Icon = PLAN_ICONS[plan.icon] || Pickaxe
                   const isLocked = plan.vipRequired > userVip
                   const canAfford = userBalance >= plan.minAmount
                   const gradient = gradients[i % gradients.length]
+                  const duration = plan.duration || 30
+                  const expectedTotal = plan.totalReturn && plan.totalReturn > 0
+                    ? plan.totalReturn
+                    : Math.round(plan.minAmount * (1 + (plan.dailyReturn * duration) / 100))
+                  const dailyGain = Math.round(expectedTotal / duration)
 
                   return (
                     <motion.div
                       key={plan.id}
-                      whileHover={{ y: -5, scale: 1.01 }}
-                      className={`relative group rounded-3xl overflow-hidden glass-card transition-all duration-300 border-white/10 ${isLocked ? 'grayscale opacity-70' : 'hover:shadow-2xl hover:shadow-blue-500/10'}`}
+                      whileHover={{ y: -4, scale: 1.005 }}
+                      className={`relative group rounded-3xl overflow-hidden glass-card transition-all duration-300 border border-white/10 ${
+                        isLocked ? 'grayscale opacity-70' : 'hover:shadow-2xl hover:shadow-cyan-500/10 hover:border-cyan-500/30'
+                      }`}
                     >
-                      {/* Badge flottant */}
+                      {/* Badge flottant VIP */}
                       <div className="absolute top-4 right-4 z-20">
                          {isLocked ? (
                            <div className="bg-red-500/20 backdrop-blur-md border border-red-500/30 text-red-400 text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 uppercase tracking-tighter">
@@ -212,63 +300,129 @@ export default function InvestPage() {
                            </div>
                          ) : (
                            <div className="bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 uppercase tracking-tighter">
-                             PROPRIÉTÉ ACTIVE
+                             DISPONIBLE
                            </div>
                          )}
                       </div>
 
                       <div className="flex flex-col md:flex-row">
-                        {/* Côté Gauche - Icon & Name */}
+                        {/* Côté Gauche - Icon & Nom du Plan */}
                         <div className={`w-full md:w-1/3 bg-gradient-to-br ${gradient} p-8 flex flex-col items-center justify-center text-center relative overflow-hidden`}>
                           <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="relative z-10 w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mb-4 backdrop-blur-xl shadow-inner border border-white/30">
+                          <div className="relative z-10 w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mb-3 backdrop-blur-xl shadow-inner border border-white/30 group-hover:scale-110 transition-transform">
                             <Icon className="w-10 h-10 text-white" />
                           </div>
-                          <h3 className="relative z-10 text-white font-black text-2xl tracking-tight uppercase">{plan.name}</h3>
-                          <p className="relative z-10 text-white/70 text-xs font-bold mt-1">SÉRIE LIMITÉE</p>
+                          
+                          {/* Nom du plan bien en évidence */}
+                          <h3 className="relative z-10 text-white font-black text-2xl tracking-tight uppercase drop-shadow-md">
+                            {plan.name}
+                          </h3>
+                          <span className="relative z-10 mt-1 inline-block bg-black/20 text-white/90 text-[10px] font-black px-3 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                            Plan de Minage
+                          </span>
                         </div>
 
-                        {/* Côté Droit - Details */}
-                        <div className="flex-1 p-8 flex flex-col justify-between">
-                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                            <div className="space-y-1">
-                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Investissement</p>
-                              <p className="text-white font-black text-lg tracking-tight">{plan.minAmount.toLocaleString()} <span className="text-slate-500 text-xs">XAF</span></p>
+                        {/* Côté Droit - Détails, Montant Total et Action */}
+                        <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between bg-slate-900/60">
+                          <div>
+                            {/* Entête avec Nom du plan et statut */}
+                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400">
+                                  Nom du Plan
+                                </span>
+                                <h4 className="text-xl font-black text-white uppercase tracking-tight">
+                                  {plan.name}
+                                </h4>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Cycle</span>
+                                <span className="text-cyan-400 font-black text-sm">{duration} Jours</span>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <p className="text-emerald-500/70 text-[10px] font-bold uppercase tracking-widest">Profit / Jour</p>
-                              <p className="text-emerald-400 font-black text-lg tracking-tight">+{ (plan.minAmount * plan.dailyReturn / 100).toLocaleString() } <span className="text-emerald-500/50 text-xs">XAF</span></p>
+
+                            {/* Mise en avant majeure : MONTANT TOTAL À RECEVOIR */}
+                            <div className="bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-transparent border border-amber-500/30 rounded-2xl p-4 mb-6 relative overflow-hidden">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                    <TrendingUp className="w-4 h-4 text-amber-400" /> Montant Total à Recevoir
+                                  </p>
+                                  <p className="text-amber-300 font-black text-2xl sm:text-3xl tracking-tight mt-0.5 drop-shadow">
+                                    {expectedTotal.toLocaleString()} <span className="text-sm font-bold text-amber-400">XAF</span>
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="bg-emerald-500/20 text-emerald-300 text-xs font-black px-3 py-1 rounded-xl border border-emerald-500/30 block">
+                                    +{dailyGain.toLocaleString()} XAF / jour
+                                  </span>
+                                  <span className="text-slate-400 text-[10px] mt-1 block">Crédité chaque jour</span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <p className="text-blue-400/70 text-[10px] font-bold uppercase tracking-widest">ROI Total</p>
-                              <p className="text-blue-400 font-black text-lg tracking-tight">{ (plan.dailyReturn * plan.duration).toLocaleString() }%</p>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Cycle</p>
-                              <p className="text-white font-black text-lg tracking-tight">{plan.duration} <span className="text-slate-500 text-xs">JOURS</span></p>
+
+                            {/* Grille des 4 métriques du plan */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+                              <div className="space-y-0.5">
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Investissement</p>
+                                <p className="text-white font-black text-base tracking-tight">
+                                  {plan.minAmount.toLocaleString()} <span className="text-slate-500 text-xs">XAF</span>
+                                </p>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <p className="text-emerald-500/80 text-[10px] font-bold uppercase tracking-widest">Gain / Jour</p>
+                                <p className="text-emerald-400 font-black text-base tracking-tight">
+                                  +{dailyGain.toLocaleString()} <span className="text-emerald-500/50 text-xs">XAF</span>
+                                </p>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <p className="text-amber-400/80 text-[10px] font-bold uppercase tracking-widest">Montant Total</p>
+                                <p className="text-amber-300 font-black text-base tracking-tight">
+                                  {expectedTotal.toLocaleString()} <span className="text-amber-500/60 text-xs">XAF</span>
+                                </p>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <p className="text-blue-400/80 text-[10px] font-bold uppercase tracking-widest">Rentabilité Totale</p>
+                                <p className="text-blue-400 font-black text-base tracking-tight">
+                                  +{Math.round(plan.dailyReturn * duration)}%
+                                </p>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-4">
+                          {/* Bouton d'activation et message solde */}
+                          <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                             {!canAfford && !isLocked && (
-                               <div className="flex-1 text-yellow-400/80 text-[10px] font-bold bg-yellow-400/10 border border-yellow-400/20 px-4 py-3 rounded-2xl flex items-center gap-3">
-                                 <Info className="w-4 h-4 flex-shrink-0" />
-                                 <span>Il vous manque { (plan.minAmount - userBalance).toLocaleString() } XAF pour ce plan.</span>
+                               <div className="w-full sm:flex-1 text-yellow-400 text-xs font-bold bg-yellow-400/10 border border-yellow-400/20 px-4 py-3 rounded-2xl flex items-center justify-between gap-2">
+                                 <span>Il vous manque {(plan.minAmount - userBalance).toLocaleString()} XAF.</span>
+                                 <Link
+                                   href="/dashboard/banque?tab=depot"
+                                   className="text-[10px] font-black uppercase text-white bg-yellow-500/30 hover:bg-yellow-500/50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                                 >
+                                   Recharger →
+                                 </Link>
                                </div>
                             )}
+
                             <button
                               onClick={() => !isLocked && handleInvest(plan)}
                               disabled={isLocked || investing === plan.id}
-                              className={`px-8 py-4 rounded-2xl font-black text-sm tracking-widest group-hover:shadow-2xl transition-all active:scale-95 ${
+                              className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl ${
                                 isLocked 
                                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed border border-white/5'
-                                  : 'bg-white text-slate-900 hover:bg-slate-200'
-                              } flex-1 md:flex-none uppercase`}
+                                  : 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/20'
+                              } flex-1 sm:flex-initial`}
                             >
                               {investing === plan.id ? (
-                                <span className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                                  Activation en cours...
+                                </span>
                               ) : isLocked ? (
-                                "Verrouillé"
+                                "Plan Verrouillé"
                               ) : (
                                 "Activer le plan"
                               )}
@@ -283,6 +437,28 @@ export default function InvestPage() {
             </div>
           </div>
         )}
+
+        {/* Modal Vert Animé de Confirmation de Souscription */}
+        <PlanSuccessModal
+          isOpen={!!successModalData}
+          onClose={() => setSuccessModalData(null)}
+          data={successModalData}
+          onViewInvestments={() => {
+            const el = document.getElementById('active-investments')
+            if (el) el.scrollIntoView({ behavior: 'smooth' })
+          }}
+          onOpenInvoice={(inv) => {
+            setCurrentInvoice(inv)
+            setInvoiceModalOpen(true)
+          }}
+        />
+
+        {/* Modal Facture */}
+        <SubscriptionInvoiceModal
+          isOpen={invoiceModalOpen}
+          onClose={() => setInvoiceModalOpen(false)}
+          invoice={currentInvoice}
+        />
       </div>
     </DashboardLayout>
   )
