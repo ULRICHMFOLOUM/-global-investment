@@ -75,9 +75,15 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [exactBalance, setExactBalance] = useState("");
   const [balanceAdjustAmount, setBalanceAdjustAmount] = useState("");
+  const [balanceMode, setBalanceMode] = useState<"EXACT" | "DELTA">("EXACT");
+  const [exactBonusBalance, setExactBonusBalance] = useState("");
   const [selectedVipLevel, setSelectedVipLevel] = useState<number>(0);
+  const [selectedRole, setSelectedRole] = useState<string>("USER");
   const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userDeleteModalOpen, setUserDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
 
   // Plans state
@@ -340,30 +346,78 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Update user balance or VIP
+  // Ouvrir modal utilisateur avec préremplissage
+  const handleOpenUserModal = (u: any) => {
+    setSelectedUser(u);
+    setExactBalance(u.balance !== undefined ? u.balance.toString() : "0");
+    setBalanceAdjustAmount("");
+    setBalanceMode("EXACT");
+    setExactBonusBalance(u.bonusBalance !== undefined ? u.bonusBalance.toString() : "0");
+    setSelectedVipLevel(u.vipLevel || 0);
+    setSelectedRole(u.role || "USER");
+    setUserModalOpen(true);
+  };
+
+  // Mettre à jour le solde (exact ou relatif), le bonus, le rôle et le niveau VIP
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
     setUserActionLoading(true);
     try {
+      const payload: any = {
+        userId: selectedUser.id,
+        vipLevel: selectedVipLevel,
+        role: selectedRole,
+      };
+
+      if (balanceMode === "EXACT" && exactBalance !== "") {
+        payload.balance = parseFloat(exactBalance);
+      } else if (balanceMode === "DELTA" && balanceAdjustAmount !== "") {
+        payload.balanceDelta = parseFloat(balanceAdjustAmount);
+      }
+
+      if (exactBonusBalance !== "") {
+        payload.bonusBalance = parseFloat(exactBonusBalance);
+      }
+
       const res = await fetch("/api/admin/users", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          balanceDelta: balanceAdjustAmount ? parseFloat(balanceAdjustAmount) : undefined,
-          vipLevel: selectedVipLevel,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      toast.success("Utilisateur mis à jour !");
+      toast.success(data.message || "Utilisateur mis à jour avec succès !");
       setUserModalOpen(false);
       setBalanceAdjustAmount("");
+      setExactBalance("");
       fetchUsers();
       fetchStats();
     } catch (err: any) {
       toast.error(err.message || "Erreur de mise à jour");
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  // Supprimer un utilisateur
+  const handleDeleteUser = async (userId: string) => {
+    setUserActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users?userId=${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      toast.success(data.message || "Compte utilisateur supprimé avec succès !");
+      setUserDeleteModalOpen(false);
+      setUserToDelete(null);
+      setUserModalOpen(false);
+      fetchUsers();
+      fetchStats();
+    } catch (err: any) {
+      toast.error(err.message || "Erreur lors de la suppression");
     } finally {
       setUserActionLoading(false);
     }
@@ -1201,16 +1255,26 @@ export default function AdminDashboardPage() {
                           {u._count?.investments || 0} actif(s)
                         </td>
                         <td className="py-4 text-right">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setSelectedVipLevel(u.vipLevel);
-                              setUserModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-cyan-500 hover:text-black text-slate-300 text-xs font-bold transition-all"
-                          >
-                            Ajuster Solde / VIP
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenUserModal(u)}
+                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-cyan-500 hover:text-black text-slate-300 text-xs font-bold transition-all flex items-center gap-1.5"
+                              title="Modifier le solde, le bonus ou le niveau VIP"
+                            >
+                              <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                              Modifier
+                            </button>
+                            <button
+                              onClick={() => {
+                                setUserToDelete(u);
+                                setUserDeleteModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white transition-all border border-rose-500/20"
+                              title="Supprimer définitivement ce compte utilisateur"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1531,18 +1595,21 @@ export default function AdminDashboardPage() {
 
       {/* MODAL: AJUSTER SOLDE / VIP UTILISATEUR */}
       <AnimatePresence>
+        {/* MODAL: GESTION COMPLÈTE UTILISATEUR & MODIFICATION DE SOLDE */}
         {userModalOpen && selectedUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#0e1626] border border-cyan-500/30 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5"
+              className="bg-[#0e1626] border border-cyan-500/30 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5 my-auto"
             >
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
-                  <h3 className="text-base font-black text-white">Gestion Utilisateur</h3>
-                  <p className="text-xs text-cyan-400 font-mono">{selectedUser.name}</p>
+                  <h3 className="text-base font-black text-white">Gestion de l'Utilisateur</h3>
+                  <p className="text-xs text-cyan-400 font-mono">
+                    {selectedUser.name} • {selectedUser.email}
+                  </p>
                 </div>
                 <button
                   onClick={() => setUserModalOpen(false)}
@@ -1552,68 +1619,238 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {/* Current Balance Display */}
-                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                  <span className="text-xs text-slate-400 uppercase font-bold">Solde actuel :</span>
-                  <span className="text-lg font-black text-emerald-400">
-                    {selectedUser.balance.toLocaleString()} XAF
-                  </span>
+              <div className="space-y-4 text-xs">
+                {/* Visualisation des soldes actuels */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                    <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">
+                      Solde Principal Actuel
+                    </span>
+                    <span className="text-base font-black text-emerald-400">
+                      {selectedUser.balance.toLocaleString()} XAF
+                    </span>
+                  </div>
+                  <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                    <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block mb-1">
+                      Bonus Parrainage Actuel
+                    </span>
+                    <span className="text-base font-black text-amber-400">
+                      {(selectedUser.bonusBalance || 0).toLocaleString()} XAF
+                    </span>
+                  </div>
                 </div>
 
-                {/* Adjust Balance */}
+                {/* Sélecteur de mode de solde */}
+                <div className="bg-slate-900/80 p-4 rounded-2xl border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                      Modifier le Solde Principal
+                    </label>
+                    <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/10 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setBalanceMode("EXACT")}
+                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                          balanceMode === "EXACT"
+                            ? "bg-cyan-500 text-black shadow-md font-black"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        Nouveau Solde Fixe
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBalanceMode("DELTA")}
+                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                          balanceMode === "DELTA"
+                            ? "bg-cyan-500 text-black shadow-md font-black"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        Ajuster (+ / -)
+                      </button>
+                    </div>
+                  </div>
+
+                  {balanceMode === "EXACT" ? (
+                    <div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={exactBalance}
+                        onChange={(e) => setExactBalance(e.target.value)}
+                        placeholder="Entrez le solde exact voulu (ex: 150000)"
+                        className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-cyan-500/30 text-emerald-400 font-mono text-sm font-black focus:outline-none focus:border-cyan-400"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Le solde principal de l'utilisateur deviendra exactement ce montant en XAF.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="number"
+                        step="any"
+                        value={balanceAdjustAmount}
+                        onChange={(e) => setBalanceAdjustAmount(e.target.value)}
+                        placeholder="Ex: 50000 pour ajouter, -20000 pour déduire"
+                        className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-white/10 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Valeur positive pour créditer, valeur négative pour débiter.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modifier le Bonus de Parrainage */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase">
-                    Ajuster Solde (+/- XAF)
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5">
+                    Solde Bonus Parrainage (XAF)
                   </label>
                   <input
                     type="number"
-                    value={balanceAdjustAmount}
-                    onChange={(e) => setBalanceAdjustAmount(e.target.value)}
-                    placeholder="Ex: 50000 pour créditer, -20000 pour débiter"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-500"
+                    min="0"
+                    step="any"
+                    value={exactBonusBalance}
+                    onChange={(e) => setExactBonusBalance(e.target.value)}
+                    placeholder="Montant du bonus parrainage"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-amber-300 font-mono text-xs focus:outline-none focus:border-cyan-500"
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Les montants positifs créditent le compte ; les négatifs débitent.
-                  </p>
                 </div>
 
-                {/* Adjust VIP Level */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase">
-                    Niveau VIP
-                  </label>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {[0, 1, 2, 3, 4, 5].map((lvl) => (
-                      <button
-                        key={lvl}
-                        onClick={() => setSelectedVipLevel(lvl)}
-                        className={`py-2 rounded-xl text-xs font-black transition-all ${
-                          selectedVipLevel === lvl
-                            ? "bg-yellow-400 text-black shadow-lg shadow-yellow-400/30"
-                            : "bg-white/5 text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        VIP {lvl}
-                      </button>
-                    ))}
+                {/* Rôle & Niveau VIP */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5">
+                      Rôle Système
+                    </label>
+                    <select
+                      value={selectedRole}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="USER">Utilisateur (USER)</option>
+                      <option value="ADMIN">Administrateur (ADMIN)</option>
+                    </select>
                   </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5">
+                      Niveau VIP (0 à 5)
+                    </label>
+                    <div className="grid grid-cols-6 gap-1">
+                      {[0, 1, 2, 3, 4, 5].map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setSelectedVipLevel(lvl)}
+                          className={`py-2 rounded-lg text-xs font-black transition-all ${
+                            selectedVipLevel === lvl
+                              ? "bg-yellow-400 text-black shadow-md shadow-yellow-400/30"
+                              : "bg-white/5 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Zone de Danger: Supprimer ce compte */}
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Besoin de retirer cet utilisateur ?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserToDelete(selectedUser);
+                      setUserDeleteModalOpen(true);
+                    }}
+                    className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-500/20"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Supprimer ce compte
+                  </button>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* Boutons d'action */}
+              <div className="flex gap-3 pt-2 border-t border-white/10">
                 <button
+                  type="button"
                   onClick={() => setUserModalOpen(false)}
                   className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase"
                 >
                   Annuler
                 </button>
                 <button
+                  type="button"
                   onClick={handleUpdateUser}
                   disabled={userActionLoading}
                   className="flex-1 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-cyan-500/20"
                 >
-                  {userActionLoading ? "Enregistrement..." : "Appliquer"}
+                  {userActionLoading ? "Enregistrement..." : "Appliquer les Modifications"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* MODAL: CONFIRMATION SUPPRESSION DÉFINITIVE D'UN COMPTE UTILISATEUR */}
+        {userDeleteModalOpen && userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#12111d] border border-rose-500/40 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5"
+            >
+              <div className="flex items-center gap-3 text-rose-400 border-b border-rose-500/20 pb-4">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Supprimer ce Compte ?</h3>
+                  <p className="text-xs text-rose-300 font-mono">Action irréversible</p>
+                </div>
+              </div>
+
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2 text-xs text-slate-300">
+                <p>
+                  Êtes-vous sûr de vouloir supprimer définitivement le compte de{" "}
+                  <strong className="text-white font-bold">{userToDelete.name}</strong> ?
+                </p>
+                <div className="text-[11px] font-mono text-slate-400 pt-1 space-y-0.5">
+                  <p>📧 Email : {userToDelete.email}</p>
+                  <p>📱 Téléphone : {userToDelete.phone}</p>
+                  <p>💰 Solde : {userToDelete.balance?.toLocaleString()} XAF</p>
+                </div>
+                <p className="text-[10px] text-rose-400/80 pt-2 border-t border-white/5">
+                  ⚠️ Tous les investissements, gains, dépôts, retraits et notifications liés à cet utilisateur seront également supprimés.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDeleteModalOpen(false);
+                    setUserToDelete(null);
+                  }}
+                  disabled={userActionLoading}
+                  className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs uppercase"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteUser(userToDelete.id)}
+                  disabled={userActionLoading}
+                  className="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-rose-500/30 flex items-center justify-center gap-2"
+                >
+                  {userActionLoading ? "Suppression..." : "Confirmer la Suppression"}
                 </button>
               </div>
             </motion.div>
