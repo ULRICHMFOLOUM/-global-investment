@@ -60,6 +60,7 @@ function BanqueContent() {
   const [investing, setInvesting] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [pollingTxId, setPollingTxId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [balance, setBalance] = useState(0)
   const [userVip, setUserVip] = useState(0)
@@ -178,6 +179,40 @@ function BanqueContent() {
   const MIN_WITHDRAW = 100
   const WITHDRAW_FEE = 0.03 // 3%
 
+  const startPollingDeposit = (txId: string) => {
+    setPollingTxId(txId)
+    let attempts = 0
+    const maxAttempts = 25 // 25 x 3s = 75 secondes d'attente max
+    const interval = setInterval(async () => {
+      attempts++
+      try {
+        const res = await fetch(`/api/deposit/status?txId=${txId}`)
+        const data = await res.json()
+        if (data.status === 'SUCCESS') {
+          clearInterval(interval)
+          setPollingTxId(null)
+          setSuccess(true)
+          setSuccessMessage(`✅ Paiement validé avec succès ! Votre solde a été crédité.`)
+          fetchUserData()
+        } else if (data.status === 'FAILED') {
+          clearInterval(interval)
+          setPollingTxId(null)
+          setError(data.message || 'Le paiement a échoué ou a été annulé.')
+          setSuccess(false)
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          setPollingTxId(null)
+          setSuccessMessage("Votre transaction est toujours en cours de validation par l'opérateur. Votre compte sera crédité dès confirmation de Fapshi.")
+        }
+      } catch {
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          setPollingTxId(null)
+        }
+      }
+    }, 3000)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -209,7 +244,10 @@ function BanqueContent() {
           setBalance(prev => prev - parseFloat(form.amount))
           fetchWithdrawInfo()
         } else {
-          setSuccessMessage(data.message || `Dépôt de ${parseFloat(form.amount).toLocaleString()} XAF validé avec succès ! Votre solde est immédiatement disponible.`)
+          setSuccessMessage(data.message || `Demande de paiement envoyée vers le ${form.phone}. Veuillez valider la transaction sur votre téléphone avec votre code PIN Mobile Money.`)
+          if (data.transactionId || data.transId) {
+            startPollingDeposit(data.transactionId || data.transId)
+          }
           fetchUserData()
         }
         setForm({ amount: '', phone: '', operator: 'orange', transactionId: '' })
@@ -818,9 +856,15 @@ function BanqueContent() {
         <AnimatePresence>
           {success && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="glass-card p-4 border-emerald-500/30 bg-emerald-500/10 flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              {pollingTxId ? (
+                <span className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              )}
               <div>
-                <p className="text-emerald-300 text-xs font-black uppercase tracking-tight">Opération Enregistrée</p>
+                <p className="text-emerald-300 text-xs font-black uppercase tracking-tight">
+                  {pollingTxId ? 'Demande envoyée — En attente de validation...' : 'Opération Validée'}
+                </p>
                 <p className="text-emerald-200 text-xs mt-1">{successMessage || "Votre demande a bien été transmise."}</p>
               </div>
             </motion.div>

@@ -64,22 +64,27 @@ export async function getFapshiTransactionStatus(transId: string) {
 }
 
 /**
- * Initie un paiement direct (push) vers un numéro Mobile Money
+ * Initie un paiement direct (push USSD) vers un numéro Mobile Money
  */
 export async function fapshiDirectPayment(params: {
   amount: number;
   phone: string;
-  email: string;
+  email?: string;
+  userId?: string;
   externalId?: string;
+  medium?: string;
+  message?: string;
 }) {
   const response = await axios.post(
     `${FAPSHI_BASE_URL}/direct-pay`,
     {
       amount: params.amount,
       phone: params.phone,
-      email: params.email,
-      externalId: params.externalId,
-      message: "Retrait GlobalInvest Africa",
+      email: params.email || undefined,
+      userId: params.userId || undefined,
+      externalId: params.externalId || undefined,
+      medium: params.medium || undefined,
+      message: params.message || "Dépôt GlobalInvest Africa",
     },
     {
       headers: {

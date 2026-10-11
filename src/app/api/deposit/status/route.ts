@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getFapshiTransactionStatus } from '@/lib/payment'
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -38,39 +40,87 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         status: 'SUCCESS',
         amount: transaction.amount,
-        message: 'Paiement déjà confirmé',
+        message: 'Paiement confirmé et solde crédité.',
       })
     }
 
-    // Validation automatique de toute transaction en attente
-    if (transaction.status === 'PENDING') {
-      await prisma.$transaction([
-        prisma.transaction.update({
-          where: { id: transaction.id },
-          data: { status: 'SUCCESS' },
-        }),
-        prisma.user.update({
-          where: { id: transaction.userId },
-          data: { balance: { increment: transaction.amount } },
-        }),
-      ])
-
-      // Bonus parrainage 5%
-      const user = await prisma.user.findUnique({
-        where: { id: transaction.userId },
+    // Si déjà en échec
+    if (transaction.status === 'FAILED') {
+      return NextResponse.json({
+        status: 'FAILED',
+        amount: transaction.amount,
+        message: 'La transaction a échoué ou a été annulée.',
       })
-      if (user?.referredBy && transaction.amount >= 500) {
-        const bonus = Math.floor(transaction.amount * 0.05)
-        await prisma.user.update({
-          where: { id: user.referredBy },
-          data: { bonusBalance: { increment: bonus } },
-        }).catch(() => {})
+    }
+
+    // Si la transaction est en attente, interroger Fapshi pour vérifier si le client a payé
+    if (transaction.status === 'PENDING') {
+      const fapshiId = transaction.externalId || transaction.transactionId
+      let fapshiData: any = null
+
+      if (fapshiId) {
+        try {
+          fapshiData = await getFapshiTransactionStatus(fapshiId)
+        } catch (fapshiErr: any) {
+          console.warn('Erreur interrogation Fapshi status:', fapshiErr.response?.data || fapshiErr.message)
+        }
+      }
+
+      if (fapshiData && fapshiData.status === 'SUCCESSFUL') {
+        // Valider et créditer UNIQUEMENT si Fapshi confirme le succès
+        await prisma.$transaction([
+          prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'SUCCESS' },
+          }),
+          prisma.user.update({
+            where: { id: transaction.userId },
+            data: { balance: { increment: transaction.amount } },
+          }),
+          prisma.notification.create({
+            data: {
+              userId: transaction.userId,
+              title: "💰 Dépôt Confirmé & Crédité !",
+              message: `Votre dépôt de ${transaction.amount.toLocaleString()} XAF via Mobile Money a été validé avec succès par Fapshi. Votre solde a été mis à jour.`,
+              type: "DEPOSIT",
+            },
+          }),
+        ])
+
+        // Bonus parrainage 5% si parrainé et montant >= 500 XAF
+        const user = await prisma.user.findUnique({
+          where: { id: transaction.userId },
+        })
+        if (user?.referredBy && transaction.amount >= 500) {
+          const bonus = Math.floor(transaction.amount * 0.05)
+          await prisma.user.update({
+            where: { id: user.referredBy },
+            data: { bonusBalance: { increment: bonus } },
+          }).catch(() => {})
+        }
+
+        return NextResponse.json({
+          status: 'SUCCESS',
+          amount: transaction.amount,
+          message: 'Paiement confirmé par Fapshi ! Votre compte a été crédité.',
+        })
+      } else if (fapshiData && fapshiData.status === 'FAILED') {
+        await prisma.transaction.update({
+          where: { id: transaction.id },
+          data: { status: 'FAILED' },
+        })
+
+        return NextResponse.json({
+          status: 'FAILED',
+          amount: transaction.amount,
+          message: fapshiData.reason || 'Le paiement a échoué ou a été annulé par le client.',
+        })
       }
 
       return NextResponse.json({
-        status: 'SUCCESS',
+        status: 'PENDING',
         amount: transaction.amount,
-        message: 'Dépôt validé et crédité automatiquement avec succès !',
+        message: 'En attente de validation sur votre téléphone...',
       })
     }
 
