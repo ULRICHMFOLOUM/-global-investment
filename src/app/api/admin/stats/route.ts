@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: {
           depositor: {
-            select: { name: true, email: true, phone: true },
+            select: { id: true, name: true, email: true, phone: true },
           },
         },
       }),

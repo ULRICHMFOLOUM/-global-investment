@@ -47,6 +47,18 @@ export async function GET(req: NextRequest) {
             deposits: true,
           },
         },
+        deposits: {
+          where: { type: "DEPOSIT" },
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            operator: true,
+            phone: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 

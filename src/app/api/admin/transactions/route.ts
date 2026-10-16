@@ -14,15 +14,36 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const type = searchParams.get("type");
+    const search = searchParams.get("search");
 
     const whereClause: any = {};
     if (status && status !== "ALL") whereClause.status = status;
     if (type && type !== "ALL") whereClause.type = type;
 
+    if (search && search.trim() !== "") {
+      const q = search.trim();
+      whereClause.OR = [
+        { phone: { contains: q, mode: "insensitive" } },
+        { id: { contains: q, mode: "insensitive" } },
+        { externalId: { contains: q, mode: "insensitive" } },
+        { transactionId: { contains: q, mode: "insensitive" } },
+        {
+          depositor: {
+            OR: [
+              { id: { contains: q, mode: "insensitive" } },
+              { name: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+              { phone: { contains: q, mode: "insensitive" } },
+            ],
+          },
+        },
+      ];
+    }
+
     const transactions = await prisma.transaction.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
       include: {
         depositor: {
           select: { id: true, name: true, email: true, phone: true, country: true, balance: true },
